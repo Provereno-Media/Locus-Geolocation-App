@@ -1,0 +1,6 @@
+{
+  "name": "Remix: LOCUS v 0.3",
+  "description": "Upload an image and let AI identify its location based on visual landmarks, architecture, and environmental clues.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}

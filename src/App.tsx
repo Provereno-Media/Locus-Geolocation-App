@@ -28,16 +28,28 @@ import {
   Send,
   Settings,
   Key,
-  AlertCircle
+  AlertCircle,
+  Copy
 } from 'lucide-react';
-import { 
-  geolocateImage, 
-  GeolocationResult, 
-  AnalysisMode, 
-  createOsintChatSession, 
-  ChatSession, 
-  getConfig 
-} from './services/geminiService';
+import {
+  getGeoProvider,
+  LocusError,
+  normalizeStoredResult,
+  type AnalysisMode,
+  type ChatSession,
+  type GeolocationResult,
+  type GroundingTool,
+} from './services/geo';
+import {
+  clearLocalData,
+  DEFAULT_MODEL,
+  getConfig,
+  HISTORY_KEY,
+  MODEL_OPTIONS,
+  saveConfig,
+  type LocusConfig,
+} from './services/config';
+import { formatDecimalPair, formatLatitude, formatLongitude } from './lib/coords';
 import Markdown from 'react-markdown';
 
 interface HistoryItem {
@@ -60,20 +72,62 @@ const DefaultIcon = L.icon({
 
 L.Marker.prototype.options.icon = DefaultIcon;
 
+const MAX_HISTORY = 20;
+
+function loadHistory(): HistoryItem[] {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.flatMap((item): HistoryItem[] => {
+      if (!item || typeof item !== 'object') return [];
+      const { id, image, timestamp, result } = item as Record<string, unknown>;
+      const normalized = normalizeStoredResult(result);
+      if (typeof id !== 'string' || typeof image !== 'string' || !normalized) return [];
+      return [{ id, image, timestamp: typeof timestamp === 'number' ? timestamp : 0, result: normalized }];
+    });
+  } catch (e) {
+    console.error('Could not read history from localStorage', e);
+    return [];
+  }
+}
+
+/** Full images are large; on quota errors keep fewer items instead of failing. */
+function persistHistory(items: HistoryItem[]): void {
+  for (const size of [items.length, 10, 5, 1, 0]) {
+    try {
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(items.slice(0, size)));
+      return;
+    } catch (e) {
+      if (size === 0) console.error('Could not save history to localStorage', e);
+    }
+  }
+}
+
+function mimeTypeOf(dataUrl: string): string {
+  const match = /^data:([^;,]+)[;,]/.exec(dataUrl);
+  return match?.[1] ?? 'image/jpeg';
+}
+
+function errorMessage(err: unknown): string {
+  if (err instanceof LocusError) return err.message;
+  return err instanceof Error ? err.message : 'Analysis failed. Please try again.';
+}
+
 // Helper to manage map controls (re-center & zoom)
-function MapController({ center }: { center: [number, number] }) {
+function MapController({ center, zoom, target }: { center: [number, number]; zoom: number; target: [number, number] }) {
   const map = useMap();
   
-  // Auto-center when 'center' prop changes (new result)
   useEffect(() => {
-    map.setView(center, 13, { animate: true });
+    map.setView(center, zoom, { animate: true });
     
     // small delay to ensure container is fully sized
     const timer = setTimeout(() => {
       map.invalidateSize();
     }, 200);
     return () => clearTimeout(timer);
-  }, [center, map]);
+  }, [center, zoom, map]);
 
   useEffect(() => {
     const resizeObserver = new ResizeObserver(() => {
@@ -104,7 +158,7 @@ function MapController({ center }: { center: [number, number] }) {
       </button>
       <div className="w-[1px] h-3 bg-white/10 mx-0.5" />
       <button 
-        onClick={() => map.setView(center, 13, { animate: true })}
+        onClick={() => map.setView(target, 13, { animate: true })}
         className="p-1.5 bg-cyan-600 hover:bg-cyan-500 border border-cyan-400/30 rounded shadow-[0_0_10px_rgba(8,145,178,0.3)] transition-all group"
         title="Re-center on Target"
       >
@@ -131,16 +185,13 @@ export default function App() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
   
-  const [history, setHistory] = useState<HistoryItem[]>(() => {
-    const saved = localStorage.getItem('osint_history');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [history, setHistory] = useState<HistoryItem[]>(loadHistory);
   const [activeTab, setActiveTab] = useState<'analysis' | 'history'>('analysis');
   const [analysisMode, setAnalysisMode] = useState<AnalysisMode>('visual');
-  const [groundingTool, setGroundingTool] = useState<'search' | 'maps'>('maps');
+  const [groundingTool, setGroundingTool] = useState<GroundingTool>('maps');
 
   // Config Management
-  const [config, setConfig] = useState(() => getConfig());
+  const [config, setConfig] = useState<LocusConfig>(() => getConfig());
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState(config.apiKey);
   const [selectedModel, setSelectedModel] = useState(config.modelName);
@@ -152,25 +203,25 @@ export default function App() {
   };
 
   useEffect(() => {
-    localStorage.setItem('osint_history', JSON.stringify(history));
+    persistHistory(history);
   }, [history]);
 
   useEffect(() => {
-    if (result && image && config.apiKey) {
+    if (result?.coordinates) {
       setMapCenter([result.coordinates.lat, result.coordinates.lng]);
       setMapZoom(13);
-      
-      const base64 = image.split(',')[1];
-      let mimeType = 'image/jpeg';
-      if (image.startsWith('data:image/png')) mimeType = 'image/png';
-      else if (image.startsWith('data:image/webp')) mimeType = 'image/webp';
-      
+      setTempMarker(null);
+    }
+  }, [result]);
+
+  useEffect(() => {
+    if (result && image && config.apiKey) {
       try {
-        setChatSession(createOsintChatSession(base64, mimeType, result));
-        setMessages([{ role: 'model', text: 'LOCUS OSINT Agent online. Ready to answer questions regarding this visual analysis.' }]);
-      } catch (e: any) {
-        console.error("Chat session creation failed:", e);
-        setError(e.message || "Uplink creation failed.");
+        setChatSession(getGeoProvider().createChatSession({ base64Data: image.split(',')[1], mimeType: mimeTypeOf(image) }, result));
+        setMessages([{ role: 'model', text: 'Ask about the image or the analysis. Answers are model output and need independent verification.' }]);
+      } catch (e) {
+        console.error('Chat session creation failed:', e);
+        setError(errorMessage(e));
       }
     } else {
       setChatSession(null);
@@ -195,8 +246,7 @@ export default function App() {
       const resp = await chatSession.sendMessage(userText);
       setMessages(prev => [...prev, { role: 'model', text: resp }]);
     } catch (err) {
-      const errMsg = err instanceof Error ? err.message : 'SYS_ERR: Unable to process query.';
-      setMessages(prev => [...prev, { role: 'model', text: errMsg }]);
+      setMessages(prev => [...prev, { role: 'model', text: `Error: ${errorMessage(err)}` }]);
     } finally {
       setIsChatting(false);
     }
@@ -228,12 +278,16 @@ export default function App() {
       openSettings();
       return;
     }
-    if (!image || !file) return;
+    if (!image) return;
     setIsAnalyzing(true);
     setError(null);
     try {
-      const base64Data = image.split(',')[1];
-      const res = await geolocateImage(base64Data, file.type, analysisMode, groundingTool);
+      const res = await getGeoProvider().analyzeImage({
+        base64Data: image.split(',')[1],
+        mimeType: file?.type || mimeTypeOf(image),
+        mode: analysisMode,
+        groundingTool,
+      });
       setResult(res);
 
       // Add to history
@@ -243,9 +297,9 @@ export default function App() {
         result: res,
         timestamp: Date.now()
       };
-      setHistory(prev => [newItem, ...prev].slice(0, 20)); // Keep last 20
+      setHistory(prev => [newItem, ...prev].slice(0, MAX_HISTORY));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Analysis failed. Please try again.");
+      setError(errorMessage(err));
     } finally {
       setIsAnalyzing(false);
     }
@@ -254,7 +308,7 @@ export default function App() {
   const loadHistoryItem = (item: HistoryItem) => {
     setImage(item.image);
     setResult(item.result);
-    setFile(null); // File object can't be restored from localstorage easily
+    setFile(null);
     setError(null);
     setActiveTab('analysis');
   };
@@ -291,7 +345,7 @@ export default function App() {
   };
 
   const handleSourceClick = (source: { uri: string; type: string }, e: React.MouseEvent) => {
-    if (source.type === 'maps' && result) {
+    if (source.type === 'maps' && result?.coordinates) {
       const url = source.uri;
       const coordMatch = url.match(/query=([-+]?\d*\.?\d+),([-+]?\d*\.?\d+)/) || 
                        url.match(/@([-+]?\d*\.?\d+),([-+]?\d*\.?\d+)(?:,(\d+)z)?/) ||
@@ -318,7 +372,7 @@ export default function App() {
   };
 
   const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
+    navigator.clipboard.writeText(text).catch((e) => console.error('Clipboard write failed', e));
   };
 
   return (
@@ -479,29 +533,29 @@ export default function App() {
                       <div className="flex justify-between items-center">
                         <span className="text-[10px] text-gray-500 font-mono uppercase">Latitude</span>
                         <span className="font-mono text-sm text-cyan-400">
-                          {result ? `${result.coordinates.lat.toFixed(4)}° N` : '---.----'}
+                          {result?.coordinates ? formatLatitude(result.coordinates.lat) : result ? 'Not determined' : '---.----'}
                         </span>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-[10px] text-gray-500 font-mono uppercase">Longitude</span>
                         <span className="font-mono text-sm text-cyan-400">
-                          {result ? `${result.coordinates.lng.toFixed(4)}° E` : '---.----'}
+                          {result?.coordinates ? formatLongitude(result.coordinates.lng) : result ? 'Not determined' : '---.----'}
                         </span>
                       </div>
-                      {result && (
+                      {result?.coordinates && (
                         <div className="flex gap-2 mt-2">
                           <button 
-                            onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${result.coordinates.lat},${result.coordinates.lng}`, '_blank')}
+                            onClick={() => result.coordinates && window.open(`https://www.google.com/maps/search/?api=1&query=${result.coordinates.lat},${result.coordinates.lng}`, '_blank', 'noopener,noreferrer')}
                             className="flex-1 py-2 bg-white/5 border border-white/10 rounded text-[10px] text-gray-400 hover:bg-white/10 hover:text-white transition-all uppercase tracking-widest"
                           >
                             Earth View
                           </button>
                           <button 
-                            onClick={() => copyToClipboard(`${result.coordinates.lat}, ${result.coordinates.lng}`)}
+                            onClick={() => result.coordinates && copyToClipboard(formatDecimalPair(result.coordinates))}
                             className="px-3 py-2 bg-white/5 border border-white/10 rounded text-[10px] text-gray-400 hover:bg-white/10 hover:text-white transition-all uppercase tracking-widest flex items-center justify-center"
                             title="Copy Coordinates"
                           >
-                            <Upload className="w-3 h-3 rotate-180" />
+                            <Copy className="w-3 h-3" />
                           </button>
                         </div>
                       )}
@@ -526,14 +580,26 @@ export default function App() {
                     </div>
                   </section>
 
-                  {/* Components / Search Queries */}
-                  {result?.searchQueriesExecuted && result.searchQueriesExecuted.length > 0 && (
+                  {/* Search queries: executed (from grounding metadata) vs. claimed by the model */}
+                  {result && result.groundingQueries.length > 0 && (
                     <section className="space-y-3">
-                      <label className="text-[10px] uppercase tracking-widest text-gray-500 font-bold block">Queries Executed</label>
+                      <label className="text-[10px] uppercase tracking-widest text-gray-500 font-bold block">Queries Executed by Google</label>
                       <div className="flex flex-wrap gap-2">
-                        {result.searchQueriesExecuted.map((q, i) => (
+                        {result.groundingQueries.map((q, i) => (
                           <div key={i} className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[10px] text-gray-300 font-mono flex items-center gap-1.5">
                             <Search className="w-3 h-3 text-cyan-500" />
+                            {q}
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  )}
+                  {result && result.modelReportedQueries.length > 0 && (
+                    <section className="space-y-3">
+                      <label className="text-[10px] uppercase tracking-widest text-gray-500 font-bold block">Queries Reported by Model (unverified)</label>
+                      <div className="flex flex-wrap gap-2">
+                        {result.modelReportedQueries.map((q, i) => (
+                          <div key={i} className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[10px] text-gray-500 font-mono">
                             {q}
                           </div>
                         ))}
@@ -721,7 +787,7 @@ export default function App() {
             <div className="bg-black/60 backdrop-blur-xl border border-white/10 rounded-xl flex flex-col md:flex-row items-stretch overflow-hidden">
                {/* Map Preview */}
                <div className="w-40 h-40 shrink-0 bg-gray-950 border-r border-white/10 relative overflow-hidden group">
-                  {result ? (
+                  {result?.coordinates ? (
                     <MapContainer 
                       center={mapCenter} 
                       zoom={mapZoom} 
@@ -738,7 +804,7 @@ export default function App() {
                       />
                       <Marker position={[result.coordinates.lat, result.coordinates.lng]} />
                       {tempMarker && <Marker position={tempMarker} opacity={0.5} />}
-                      <MapController center={mapCenter} />
+                      <MapController center={mapCenter} zoom={mapZoom} target={[result.coordinates.lat, result.coordinates.lng]} />
                     </MapContainer>
                   ) : (
                     <div className="w-full h-full flex flex-col items-center justify-center opacity-10 bg-[radial-gradient(#ffffff10_1px,transparent_1px)] bg-[size:16px_16px]">

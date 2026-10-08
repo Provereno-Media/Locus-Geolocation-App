@@ -1,6 +1,50 @@
 import { GoogleGenAI } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+export interface LocusConfig {
+  apiKey: string;
+  modelName: string;
+}
+
+export function getConfig(): LocusConfig {
+  try {
+    const configStr = localStorage.getItem('locus_config');
+    if (configStr) {
+      const config = JSON.parse(configStr);
+      if (config && typeof config.apiKey === 'string') {
+        return {
+          apiKey: config.apiKey,
+          modelName: config.modelName || 'gemini-3.5-flash',
+        };
+      }
+    }
+  } catch (e) {
+    console.error("Error reading config from localStorage:", e);
+  }
+  return { apiKey: '', modelName: 'gemini-3.5-flash' };
+}
+
+let lastApiKey: string | null = null;
+let aiInstance: GoogleGenAI | null = null;
+
+function getAi(): GoogleGenAI {
+  const config = getConfig();
+  if (!config.apiKey) {
+    throw new Error("API_KEY_MISSING: Gemini API Key is not configured. Please open Settings (gear icon) and add your key.");
+  }
+  
+  if (config.apiKey !== lastApiKey || !aiInstance) {
+    lastApiKey = config.apiKey;
+    aiInstance = new GoogleGenAI({
+      apiKey: config.apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        }
+      }
+    });
+  }
+  return aiInstance;
+}
 
 export interface GeolocationResult {
   locationName: string;
@@ -23,7 +67,8 @@ export interface ChatSession {
 }
 
 export function createOsintChatSession(base64Data: string, mimeType: string, result: GeolocationResult): ChatSession {
-  const model = "gemini-2.5-flash";
+  const config = getConfig();
+  const model = config.modelName || "gemini-3.5-flash";
 
   const systemInstruction = `You are a specialized OSINT (Open Source Intelligence) assistant called "LOCUS" embedded in an analytical engine. 
 The system engine has already processed an image provided by the user with the following findings:
@@ -37,7 +82,7 @@ Your task is to answer user questions about this image and the system's conclusi
 When appropriate, carefully reference specific details like architectural styles, language/text, infrastructure variants (e.g. road lines, poles), and environmental clues (flora, terrain, shadow angles).
 Provide concise, expert, and precise answers. Maintain a professional, detached, and slightly clinical "intelligence analyst" persona.`;
 
-  const chat = ai.chats.create({
+  const chat = getAi().chats.create({
     model,
     config: {
       systemInstruction: systemInstruction,
@@ -68,9 +113,18 @@ Provide concise, expert, and precise answers. Maintain a professional, detached,
           response = await chat.sendMessage({ message: text });
         }
         return response.text || "";
-      } catch (error) {
+      } catch (error: any) {
         console.error("Chat error:", error);
-        throw new Error("Chat system failed to respond.");
+        const errStr = String(error?.message || error);
+        let userMessage = "Chat system failed to respond.";
+        
+        if (errStr.includes("401") || errStr.toLowerCase().includes("unauthorized") || errStr.toLowerCase().includes("invalid key") || errStr.toLowerCase().includes("api key not valid")) {
+          userMessage = "UPLINK_ERR: Authentication failed. Please verify your Gemini API key in Settings.";
+        } else if (errStr.includes("429") || errStr.toLowerCase().includes("quota") || errStr.toLowerCase().includes("exhausted")) {
+          userMessage = "UPLINK_ERR: Rate limit or quota exceeded. Please try again in a few moments or use a different key.";
+        }
+        
+        throw new Error(userMessage);
       }
     }
   };
@@ -79,7 +133,8 @@ Provide concise, expert, and precise answers. Maintain a professional, detached,
 export type AnalysisMode = 'visual' | 'satellite' | 'flora';
 
 export async function geolocateImage(base64Data: string, mimeType: string, mode: AnalysisMode = 'visual', groundingTool: 'search' | 'maps' = 'maps'): Promise<GeolocationResult> {
-  const model = "gemini-2.5-pro"; // Upgraded to Pro for state-of-the-art OCR and reasoning in challenging conditions
+  const config = getConfig();
+  const model = config.modelName || "gemini-3.5-flash";
 
   let prompt = `Act as an expert OSINT (Open Source Intelligence) analyst specializing in image geolocation.
   Your goal is to determine the precise geographic location shown in the image by following a rigorous evidence-based workflow. Tone should be neutral, skeptical, and strictly evidence-based.
@@ -108,7 +163,7 @@ export async function geolocateImage(base64Data: string, mimeType: string, mode:
      - Translate detected words to English for generic searches, AND search the local language directly on maps.
      - Use ${groundingTool === 'maps' ? 'the Google Maps tool' : 'Google Search'} to thoroughly query these features. 
      - Verify if the architectural style, infrastructure, and vegetation match the suspected region.
-  
+   
   4. CHAIN OF THOUGHT & DEDUCTION: 
      - Broad region hypothesis: Deduce the broad region (e.g., "Left-hand traffic and tropical vegetation suggest Southeast Asia...").
      - Country/City narrowing: Narrow down the country and city based on language, architecture, and infrastructure. Cross-reference all clues to achieve street-level precision if possible.
@@ -117,7 +172,7 @@ export async function geolocateImage(base64Data: string, mimeType: string, mode:
   
   MODE FOCUS: ${mode === 'satellite' ? ' structural layout, road networks, and topography from an overhead view' : mode === 'flora' ? 'botanical signatures, biomes, and climate zones' : 'general visual cues'}.
   
-  You MUST respond ONLY with a valid JSON object matching this structure exactly:
+  You MUST respond with a JSON object matching this schema:
   {
     "locationName": "Precise name (e.g. 123 Main St, Berlin, Germany)",
     "coordinates": { "lat": number, "lng": number },
@@ -131,7 +186,7 @@ export async function geolocateImage(base64Data: string, mimeType: string, mode:
 
   let response;
   try {
-    response = await ai.models.generateContent({
+    response = await getAi().models.generateContent({
       model,
       contents: [
         {
@@ -148,34 +203,34 @@ export async function geolocateImage(base64Data: string, mimeType: string, mode:
         },
       ],
       config: {
-        tools: [groundingTool === 'maps' ? { googleMaps: { enableWidget: true } } : { googleSearch: {} }],
+        tools: [groundingTool === 'maps' ? { googleMaps: {} } : { googleSearch: {} }],
+        responseMimeType: "application/json",
       },
     });
   } catch (error: any) {
     console.error("Gemini API Error details:", error);
-    const errorMessage = error?.message || (typeof error === 'string' ? error : JSON.stringify(error));
-    throw new Error(`Failed to call the Gemini API: ${errorMessage}. Model: ${model}, Tool: ${groundingTool}`);
+    const errStr = String(error?.message || error);
+    let userMessage = `Failed to call the Gemini API: ${errStr}`;
+    
+    if (errStr.includes("401") || errStr.toLowerCase().includes("unauthorized") || errStr.toLowerCase().includes("invalid key") || errStr.toLowerCase().includes("api key not valid")) {
+      userMessage = "UPLINK_ERR: Authentication failed. Please verify your Gemini API key in Settings.";
+    } else if (errStr.includes("429") || errStr.toLowerCase().includes("quota") || errStr.toLowerCase().includes("exhausted")) {
+      userMessage = "UPLINK_ERR: Rate limit or quota exceeded. Please try again in a few moments or use a different key.";
+    }
+    
+    throw new Error(userMessage);
   }
 
   try {
     const text = response.candidates?.[0]?.content?.parts?.[0]?.text || "";
     
-    // Extract JSON from the text response (it might be wrapped in markdown code blocks)
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error("Could not find JSON in response: " + text);
-    }
-    
-    const result = JSON.parse(jsonMatch[0]) as GeolocationResult;
+    // Direct JSON parsing as the API returns structured JSON natively
+    const result = JSON.parse(text) as GeolocationResult;
     
     // Extract grounding entry point (Web Search HTML widget)
     const groundingMetadata = response.candidates?.[0]?.groundingMetadata;
     if (groundingMetadata?.searchEntryPoint?.renderedContent) {
       result.searchEntryPointHtml = groundingMetadata.searchEntryPoint.renderedContent;
-    } else if (groundingMetadata?.googleMapsWidgetContextToken) {
-      // Actually, how to render this token? For now, we will store it, although we might not use it directly without a specific JS library.
-      // E.g., we could pass it to the UI and if there's a specialized map widget, use it.
-      // But since we are asked just to test Google Maps Grounding, making the code robust is priority.
     }
     
     // Extract grounding sources if available (Web and Maps)
@@ -193,7 +248,7 @@ export async function geolocateImage(base64Data: string, mimeType: string, mode:
         }
         if (chunk.maps) {
           sources.push({
-            uri: (chunk.maps as any).uri || '', // Use any to avoid type check issues if uri isn't in definition
+            uri: (chunk.maps as any).uri || '',
             title: (chunk.maps as any).title || 'Google Maps Location',
             type: 'maps'
           });
@@ -206,6 +261,6 @@ export async function geolocateImage(base64Data: string, mimeType: string, mode:
     return result;
   } catch (error) {
     console.error("Failed to parse Gemini response:", error);
-    throw new Error("Could not analyze the image correctly. The AI reached a conclusion but failed to format it as requested.");
+    throw new Error("Could not analyze the image correctly. The AI reached a conclusion but the JSON response format was invalid.");
   }
 }

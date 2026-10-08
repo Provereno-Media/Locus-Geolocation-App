@@ -1,10 +1,40 @@
 import { useState, useCallback, useEffect, MouseEvent, useRef } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { motion, AnimatePresence } from 'motion/react';
-import { MapPin, Upload, Loader2, Info, ChevronRight, X, Compass, Search, ExternalLink, Globe, Map as MapIcon, Target, Plus, Minus, History, Trash2, Clock, MessageSquare, Send } from 'lucide-react';
-import { geolocateImage, GeolocationResult, AnalysisMode, createOsintChatSession, ChatSession } from './services/geminiService';
+import { 
+  MapPin, 
+  Upload, 
+  Loader2, 
+  Info, 
+  ChevronRight, 
+  X, 
+  Compass, 
+  Search, 
+  ExternalLink, 
+  Globe, 
+  Map as MapIcon, 
+  Target, 
+  Plus, 
+  Minus, 
+  History, 
+  Trash2, 
+  Clock, 
+  MessageSquare, 
+  Send,
+  Settings,
+  Key,
+  AlertCircle
+} from 'lucide-react';
+import { 
+  geolocateImage, 
+  GeolocationResult, 
+  AnalysisMode, 
+  createOsintChatSession, 
+  ChatSession, 
+  getConfig 
+} from './services/geminiService';
 import Markdown from 'react-markdown';
 
 interface HistoryItem {
@@ -106,12 +136,24 @@ export default function App() {
   const [analysisMode, setAnalysisMode] = useState<AnalysisMode>('visual');
   const [groundingTool, setGroundingTool] = useState<'search' | 'maps'>('maps');
 
+  // Config Management
+  const [config, setConfig] = useState(() => getConfig());
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [apiKeyInput, setApiKeyInput] = useState(config.apiKey);
+  const [selectedModel, setSelectedModel] = useState(config.modelName);
+
+  const openSettings = () => {
+    setApiKeyInput(config.apiKey);
+    setSelectedModel(config.modelName);
+    setIsSettingsOpen(true);
+  };
+
   useEffect(() => {
     localStorage.setItem('osint_history', JSON.stringify(history));
   }, [history]);
 
   useEffect(() => {
-    if (result && image) {
+    if (result && image && config.apiKey) {
       setMapCenter([result.coordinates.lat, result.coordinates.lng]);
       setMapZoom(13);
       
@@ -120,13 +162,18 @@ export default function App() {
       if (image.startsWith('data:image/png')) mimeType = 'image/png';
       else if (image.startsWith('data:image/webp')) mimeType = 'image/webp';
       
-      setChatSession(createOsintChatSession(base64, mimeType, result));
-      setMessages([{ role: 'model', text: 'LOCUS OSINT Agent online. Ready to answer questions regarding this visual analysis.' }]);
+      try {
+        setChatSession(createOsintChatSession(base64, mimeType, result));
+        setMessages([{ role: 'model', text: 'LOCUS OSINT Agent online. Ready to answer questions regarding this visual analysis.' }]);
+      } catch (e: any) {
+        console.error("Chat session creation failed:", e);
+        setError(e.message || "Uplink creation failed.");
+      }
     } else {
       setChatSession(null);
       setMessages([]);
     }
-  }, [result, image]);
+  }, [result, image, config.apiKey]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -145,7 +192,8 @@ export default function App() {
       const resp = await chatSession.sendMessage(userText);
       setMessages(prev => [...prev, { role: 'model', text: resp }]);
     } catch (err) {
-      setMessages(prev => [...prev, { role: 'model', text: 'SYS_ERR: Unable to process query.' }]);
+      const errMsg = err instanceof Error ? err.message : 'SYS_ERR: Unable to process query.';
+      setMessages(prev => [...prev, { role: 'model', text: errMsg }]);
     } finally {
       setIsChatting(false);
     }
@@ -173,6 +221,10 @@ export default function App() {
   } as any);
 
   const handleAnalyze = async () => {
+    if (!config.apiKey) {
+      openSettings();
+      return;
+    }
     if (!image || !file) return;
     setIsAnalyzing(true);
     setError(null);
@@ -281,6 +333,27 @@ export default function App() {
               className="h-6 md:h-7 object-contain rounded-sm" 
             />
           </a>
+
+          {/* Header Status Badge */}
+          <div className="ml-4 hidden sm:block">
+            {!config.apiKey ? (
+              <button 
+                onClick={openSettings}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-amber-500/10 border border-amber-500/30 text-[9px] font-mono font-bold text-amber-500 animate-pulse uppercase tracking-wider hover:bg-amber-500/20 transition-all"
+              >
+                <AlertCircle className="w-3 h-3" />
+                <span>UPLINK: OFFLINE (NO KEY)</span>
+              </button>
+            ) : (
+              <button 
+                onClick={openSettings}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-cyan-950/40 border border-cyan-500/30 text-[9px] font-mono font-bold text-cyan-400 uppercase tracking-wider hover:bg-cyan-500/10 transition-all"
+              >
+                <Key className="w-3 h-3 text-cyan-400" />
+                <span>UPLINK: SECURED</span>
+              </button>
+            )}
+          </div>
         </div>
         
         <div className="flex items-center gap-4">
@@ -291,27 +364,50 @@ export default function App() {
               ARCHIVE_READY: {history.length} OBJECTS STORED
             </div>
           </div>
+
+          {/* Settings Button */}
           <button 
-            disabled={!image || isAnalyzing || !!result}
-            onClick={handleAnalyze}
-            className={`
-              px-6 py-1.5 rounded-full text-sm font-medium transition-all
-              ${image && !result && !isAnalyzing 
-                ? 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-[0_0_15px_rgba(8,145,178,0.3)]' 
-                : 'bg-white/5 text-gray-500 border border-white/10 cursor-not-allowed'}
-            `}
+            onClick={openSettings}
+            className="p-2 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-all"
+            title="LOCUS Engine Configuration"
           >
-            {isAnalyzing ? 'Analyzing Frame...' : 'Identify Frame'}
+            <Settings className="w-4 h-4" />
           </button>
+
+          {/* Main Action Button */}
+          {!config.apiKey ? (
+            <button 
+              onClick={openSettings}
+              className="px-5 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider transition-all border border-amber-500/50 text-amber-500 hover:bg-amber-500/10 flex items-center gap-1.5 shadow-[0_0_15px_rgba(245,158,11,0.1)] hover:shadow-[0_0_20px_rgba(245,158,11,0.2)] animate-pulse"
+            >
+              <Key className="w-3.5 h-3.5" />
+              Configure API Key
+            </button>
+          ) : (
+            <button 
+              disabled={!image || isAnalyzing || !!result}
+              onClick={handleAnalyze}
+              className={`
+                px-6 py-1.5 rounded-full text-sm font-medium transition-all
+                ${image && !result && !isAnalyzing 
+                  ? 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-[0_0_15px_rgba(8,145,178,0.3)]' 
+                  : 'bg-white/5 text-gray-500 border border-white/10 cursor-not-allowed'}
+              `}
+            >
+              {isAnalyzing ? 'Analyzing Frame...' : 'Identify Frame'}
+            </button>
+          )}
         </div>
 
         <div className="hidden lg:flex items-center gap-6 text-[10px] font-mono">
           <div className="flex items-center gap-2">
-            <div className="w-1.5 h-1.5 bg-cyan-500 rounded-full animate-pulse"></div>
-            <span className="text-cyan-400 uppercase tracking-widest">Network: Live</span>
+            <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${config.apiKey ? 'bg-cyan-500' : 'bg-amber-500'}`}></div>
+            <span className={`${config.apiKey ? 'text-cyan-400' : 'text-amber-500'} uppercase tracking-widest`}>
+              {config.apiKey ? 'Uplink: Live' : 'Uplink: Offline'}
+            </span>
           </div>
           <div className="w-8 h-8 rounded-full bg-gray-900 border border-white/10 flex items-center justify-center overflow-hidden">
-            <div className="w-full h-full bg-gradient-to-tr from-cyan-900/40 to-blue-900/40" />
+            <div className={`w-full h-full bg-gradient-to-tr ${config.apiKey ? 'from-cyan-900/40 to-blue-900/40' : 'from-amber-950/40 to-red-950/40'}`} />
           </div>
         </div>
       </header>
@@ -556,16 +652,14 @@ export default function App() {
                   exit={{ opacity: 0, x: 10 }}
                   className="p-4 space-y-4"
                 >
-                  <div className="flex flex-col gap-4 px-2">
-                    <div className="flex items-center justify-between">
-                      <label className="text-[10px] uppercase tracking-widest text-gray-500 font-bold">Encrypted Archive</label>
-                    </div>
+                  <div className="flex items-center justify-between px-2">
+                    <label className="text-[10px] uppercase tracking-widest text-gray-500 font-bold">Encrypted Archive</label>
                     {history.length > 0 && (
                       <button 
-                        onClick={() => { if(confirm('Are you sure you want to clear ALL historical records? This action is irreversible.')) setHistory([]) }}
-                        className="w-full py-2.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded text-[10px] font-bold text-red-500 tracking-[0.2em] transition-all flex items-center justify-center gap-2"
+                        onClick={() => { if(confirm('Purge all archived records?')) setHistory([]) }}
+                        className="text-[8px] text-gray-700 hover:text-red-400 flex items-center gap-1 font-mono uppercase tracking-widest transition-colors"
                       >
-                        <Trash2 className="w-3 h-3" /> CLEAR HISTORY ARCHIVE
+                        <Trash2 className="w-3 h-3" /> Purge
                       </button>
                     )}
                   </div>
@@ -656,61 +750,61 @@ export default function App() {
                {/* Data Visualization */}
                <div className="flex-1 p-4 flex flex-wrap gap-6 items-center bg-gradient-to-r from-transparent to-white/5">
                   <div className="space-y-1">
-                    <span className="text-[9px] text-gray-500 uppercase font-bold tracking-widest block">System Context</span>
-                    <span className="text-lg font-light text-white block">
-                      {result ? result.locationName : 'Awaiting Frame'}
-                    </span>
+                     <span className="text-[9px] text-gray-500 uppercase font-bold tracking-widest block">System Context</span>
+                     <span className="text-lg font-light text-white block">
+                       {result ? result.locationName : 'Awaiting Frame'}
+                     </span>
                   </div>
 
                   <div className="hidden lg:block w-[1px] h-6 bg-white/10" />
 
                   <div className="space-y-1">
-                    <span className="text-[9px] text-gray-500 uppercase font-bold tracking-widest block">Analysis Mode</span>
-                    <div className="flex gap-1.5">
-                       <button 
-                        onClick={() => setAnalysisMode('visual')}
-                        disabled={isAnalyzing}
-                        className={`px-2 py-0.5 rounded text-[9px] font-bold border transition-all ${analysisMode === 'visual' ? 'bg-cyan-600/20 border-cyan-500/40 text-cyan-400' : 'bg-white/5 border-white/10 text-gray-700 hover:text-gray-400'}`}
-                       >
-                         VISUAL
-                       </button>
-                       <button 
-                        onClick={() => setAnalysisMode('satellite')}
-                        disabled={isAnalyzing}
-                        className={`px-2 py-0.5 rounded text-[9px] font-bold border transition-all ${analysisMode === 'satellite' ? 'bg-cyan-600/20 border-cyan-500/40 text-cyan-400' : 'bg-white/5 border-white/10 text-gray-700 hover:text-gray-400'}`}
-                       >
-                         SATELLITE
-                       </button>
-                       <button 
-                        onClick={() => setAnalysisMode('flora')}
-                        disabled={isAnalyzing}
-                        className={`px-2 py-0.5 rounded text-[9px] font-bold border transition-all ${analysisMode === 'flora' ? 'bg-cyan-600/20 border-cyan-500/40 text-cyan-400' : 'bg-white/5 border-white/10 text-gray-700 hover:text-gray-400'}`}
-                       >
-                         FLORA
-                       </button>
-                    </div>
+                     <span className="text-[9px] text-gray-500 uppercase font-bold tracking-widest block">Analysis Mode</span>
+                     <div className="flex gap-1.5">
+                        <button 
+                         onClick={() => setAnalysisMode('visual')}
+                         disabled={isAnalyzing}
+                         className={`px-2 py-0.5 rounded text-[9px] font-bold border transition-all ${analysisMode === 'visual' ? 'bg-cyan-600/20 border-cyan-500/40 text-cyan-400' : 'bg-white/5 border-white/10 text-gray-700 hover:text-gray-400'}`}
+                        >
+                          VISUAL
+                        </button>
+                        <button 
+                         onClick={() => setAnalysisMode('satellite')}
+                         disabled={isAnalyzing}
+                         className={`px-2 py-0.5 rounded text-[9px] font-bold border transition-all ${analysisMode === 'satellite' ? 'bg-cyan-600/20 border-cyan-500/40 text-cyan-400' : 'bg-white/5 border-white/10 text-gray-700 hover:text-gray-400'}`}
+                        >
+                          SATELLITE
+                        </button>
+                        <button 
+                         onClick={() => setAnalysisMode('flora')}
+                         disabled={isAnalyzing}
+                         className={`px-2 py-0.5 rounded text-[9px] font-bold border transition-all ${analysisMode === 'flora' ? 'bg-cyan-600/20 border-cyan-500/40 text-cyan-400' : 'bg-white/5 border-white/10 text-gray-700 hover:text-gray-400'}`}
+                        >
+                          FLORA
+                        </button>
+                     </div>
                   </div>
 
                   <div className="hidden lg:block w-[1px] h-6 bg-white/10" />
 
                   <div className="space-y-1">
-                    <span className="text-[9px] text-gray-500 uppercase font-bold tracking-widest block">Grounding</span>
-                    <div className="flex gap-1.5">
-                       <button 
-                        onClick={() => setGroundingTool('search')}
-                        disabled={isAnalyzing}
-                        className={`px-2 py-0.5 rounded text-[9px] font-bold border transition-all ${groundingTool === 'search' ? 'bg-cyan-600/20 border-cyan-500/40 text-cyan-400' : 'bg-white/5 border-white/10 text-gray-700 hover:text-gray-400'}`}
-                       >
-                         WEB SEARCH
-                       </button>
-                       <button 
-                        onClick={() => setGroundingTool('maps')}
-                        disabled={isAnalyzing}
-                        className={`px-2 py-0.5 rounded text-[9px] font-bold border transition-all ${groundingTool === 'maps' ? 'bg-cyan-600/20 border-cyan-500/40 text-cyan-400' : 'bg-white/5 border-white/10 text-gray-700 hover:text-gray-400'}`}
-                       >
-                         GOOGLE MAPS
-                       </button>
-                    </div>
+                     <span className="text-[9px] text-gray-500 uppercase font-bold tracking-widest block">Grounding</span>
+                     <div className="flex gap-1.5">
+                        <button 
+                         onClick={() => setGroundingTool('search')}
+                         disabled={isAnalyzing}
+                         className={`px-2 py-0.5 rounded text-[9px] font-bold border transition-all ${groundingTool === 'search' ? 'bg-cyan-600/20 border-cyan-500/40 text-cyan-400' : 'bg-white/5 border-white/10 text-gray-700 hover:text-gray-400'}`}
+                        >
+                          WEB SEARCH
+                        </button>
+                        <button 
+                         onClick={() => setGroundingTool('maps')}
+                         disabled={isAnalyzing}
+                         className={`px-2 py-0.5 rounded text-[9px] font-bold border transition-all ${groundingTool === 'maps' ? 'bg-cyan-600/20 border-cyan-500/40 text-cyan-400' : 'bg-white/5 border-white/10 text-gray-700 hover:text-gray-400'}`}
+                        >
+                          GOOGLE MAPS
+                        </button>
+                     </div>
                   </div>
 
                </div>
@@ -720,23 +814,47 @@ export default function App() {
           {/* Main Display Area */}
           <div className="flex-1 relative flex items-center justify-center p-8 overflow-auto custom-scrollbar">
             {!image ? (
-              <div 
-                {...getRootProps()} 
-                className={`
-                  w-full max-w-2xl h-[400px] border-2 border-dashed rounded-lg transition-all 
-                  flex flex-col items-center justify-center text-center gap-4
-                  ${isDragActive ? 'border-cyan-500 bg-cyan-500/5 scale-105' : 'border-white/5 hover:border-white/20 bg-white/2'}
-                `}
-              >
-                <input {...getInputProps()} />
-                <div className="w-16 h-16 rounded-full border border-white/10 flex items-center justify-center text-gray-700 animate-pulse">
-                  <Upload className="w-6 h-6" />
+              !config.apiKey ? (
+                /* LOCKED Dropzone Empty State */
+                <div className="w-full max-w-2xl h-[400px] border-2 border-dashed border-amber-500/30 rounded-lg bg-amber-500/5 flex flex-col items-center justify-center text-center gap-4 relative overflow-hidden group p-6">
+                  <div className="absolute inset-0 bg-[#000]/30 backdrop-blur-[2px] flex flex-col items-center justify-center gap-4 z-10 p-6">
+                    <div className="w-14 h-14 rounded-full border border-amber-500/30 bg-amber-500/10 flex items-center justify-center text-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.2)]">
+                      <Key className="w-6 h-6 animate-pulse" />
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-base font-bold tracking-wider text-amber-500 uppercase">SYSTEM LOCKED: GEMINI API KEY REQUIRED</p>
+                      <p className="text-xs text-gray-400 font-mono max-w-md mx-auto leading-relaxed">
+                        LOCUS visual engine requires a secure direct connection to Google Gemini. Please configure your API key to enable visual analysis and geographic heuristics.
+                      </p>
+                    </div>
+                    <button 
+                      onClick={openSettings}
+                      className="mt-2 px-5 py-2 rounded bg-amber-500 hover:bg-amber-400 text-[#0a0a0a] font-mono text-xs font-bold tracking-widest uppercase transition-all shadow-[0_0_15px_rgba(245,158,11,0.3)] hover:scale-105"
+                    >
+                      Configure Engine Key
+                    </button>
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <p className="text-base font-semibold tracking-tight uppercase">INSERT TARGET FRAME</p>
-                  <p className="text-[10px] text-gray-600 font-mono uppercase">Drag/Drop imagery or tap to select</p>
+              ) : (
+                /* Active Dropzone empty state */
+                <div 
+                  {...getRootProps()} 
+                  className={`
+                    w-full max-w-2xl h-[400px] border-2 border-dashed rounded-lg transition-all 
+                    flex flex-col items-center justify-center text-center gap-4 cursor-pointer
+                    ${isDragActive ? 'border-cyan-500 bg-cyan-500/5 scale-105' : 'border-white/5 hover:border-white/20 bg-white/2'}
+                  `}
+                >
+                  <input {...getInputProps()} />
+                  <div className="w-16 h-16 rounded-full border border-white/10 flex items-center justify-center text-gray-700 animate-pulse">
+                    <Upload className="w-6 h-6" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-base font-semibold tracking-tight uppercase">INSERT TARGET FRAME</p>
+                    <p className="text-[10px] text-gray-600 font-mono uppercase">Drag/Drop imagery or tap to select</p>
+                  </div>
                 </div>
-              </div>
+              )
             ) : (
               <div className="relative flex flex-col items-center">
                 <div className={`relative group transition-transform ${isAnalyzing ? 'scale-105' : ''}`}>
@@ -780,7 +898,7 @@ export default function App() {
                   <motion.div 
                     initial={{ y: 20, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
-                    className="mt-6 px-4 py-2 bg-red-950/40 border border-red-500/40 rounded text-xs text-red-400 font-mono"
+                    className="mt-6 px-4 py-2 bg-red-950/40 border border-red-500/40 rounded text-xs text-red-400 font-mono max-w-lg"
                   >
                     SYS_ERR: {error}
                   </motion.div>
@@ -842,7 +960,7 @@ export default function App() {
                   <div className={`max-w-[92%] rounded-sm p-3.5 text-sm flex flex-col gap-1 border border-l-2 ${msg.role === 'user' ? 'bg-[#111] border-white/10 border-l-gray-600 text-gray-200' : 'bg-cyan-950/10 border-cyan-900/40 border-l-cyan-500 text-cyan-50'}`}>
                     {msg.role === 'model' ? (
                        <div className="markdown-body text-xs prose prose-invert prose-p:leading-relaxed prose-headings:text-cyan-400 prose-a:text-cyan-400 prose-strong:text-cyan-100 max-w-none">
-                         <Markdown>{msg.text}</Markdown>
+                          <Markdown>{msg.text}</Markdown>
                        </div>
                     ) : (
                        <p className="text-xs font-mono">{msg.text}</p>
@@ -906,21 +1024,153 @@ export default function App() {
                  </button>
               </form>
               <div className="mt-2 text-[8px] font-mono text-gray-600 text-center uppercase tracking-widest">
-                 System: Gemini 2.5 Flash / End-to-End Encryption
+                 System: {config.modelName} / BYOK UPLINK Active
               </div>
             </div>
           </aside>
         )}
       </main>
 
+      {/* Settings Dialog Overlay */}
+      <AnimatePresence>
+        {isSettingsOpen && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/80 backdrop-blur-md z-[9999] flex items-center justify-center p-4"
+            onClick={() => setIsSettingsOpen(false)}
+          >
+            <motion.div 
+              initial={{ scale: 0.95, y: 10 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 10 }}
+              className="w-full max-w-md bg-[#0a0a0a] border border-cyan-500/30 rounded-xl overflow-hidden shadow-[0_0_50px_rgba(8,145,178,0.25)] flex flex-col"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="px-6 py-4 border-b border-white/10 flex justify-between items-center bg-[#0f0f0f]">
+                <div className="flex items-center gap-2 text-cyan-400">
+                  <Settings className="w-4 h-4 animate-pulse" />
+                  <span className="text-xs font-mono font-bold uppercase tracking-wider">LOCUS Engine Settings</span>
+                </div>
+                <button 
+                  onClick={() => setIsSettingsOpen(false)}
+                  className="p-1.5 rounded bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-6 space-y-6">
+                <div className="p-3.5 bg-cyan-950/20 border border-cyan-500/20 rounded-lg space-y-2 text-xs leading-relaxed text-gray-400 font-mono">
+                  <div className="flex items-center gap-2 text-cyan-400 font-bold">
+                    <Info className="w-4 h-4 shrink-0" />
+                    <span>DIRECT API CONNECTION (BYOK)</span>
+                  </div>
+                  <p>
+                    LOCUS runs entirely client-side. Your Google Gemini API Key is stored securely in your browser's local storage and is sent directly to Google's API servers.
+                  </p>
+                  <a 
+                    href="https://aistudio.google.com/app/apikey" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-cyan-400 hover:text-cyan-300 hover:underline pt-1 font-bold"
+                  >
+                    Get your free API key at Google AI Studio <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+
+                {/* Inputs */}
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-mono font-bold uppercase tracking-widest text-gray-500 block">
+                      Gemini API Key
+                    </label>
+                    <div className="relative flex items-center">
+                      <Key className="absolute left-3 w-4 h-4 text-cyan-600 pointer-events-none" />
+                      <input 
+                        type="password"
+                        value={apiKeyInput}
+                        onChange={e => setApiKeyInput(e.target.value)}
+                        placeholder="AIzaSy..."
+                        className="w-full bg-[#111] border border-white/10 focus:border-cyan-500/50 rounded pl-10 pr-4 py-2.5 text-xs font-mono text-white placeholder-gray-700 focus:outline-none transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-mono font-bold uppercase tracking-widest text-gray-500 block">
+                      Active Model
+                    </label>
+                    <select 
+                      value={selectedModel}
+                      onChange={e => setSelectedModel(e.target.value)}
+                      className="w-full bg-[#111] border border-white/10 focus:border-cyan-500/50 rounded px-3 py-2.5 text-xs font-mono text-gray-300 focus:outline-none transition-all"
+                    >
+                      <option value="gemini-3.5-flash">Gemini 3.5 Flash (Recommended: Fast, multimodal, search/maps grounding)</option>
+                      <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro (Deep reasoning, slower)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer Actions */}
+              <div className="px-6 py-4 border-t border-white/10 flex justify-between bg-[#080808]">
+                <button 
+                  type="button"
+                  onClick={() => {
+                    if (confirm("Are you sure you want to purge all configuration data and analysis history from this device?")) {
+                      localStorage.removeItem('locus_config');
+                      localStorage.removeItem('osint_history');
+                      setConfig({ apiKey: '', modelName: 'gemini-3.5-flash' });
+                      setHistory([]);
+                      setApiKeyInput('');
+                      setSelectedModel('gemini-3.5-flash');
+                      setIsSettingsOpen(false);
+                    }
+                  }}
+                  className="px-3 py-2 border border-red-950 bg-red-950/20 hover:bg-red-900/20 hover:border-red-500/30 text-red-400 rounded text-[10px] font-mono uppercase tracking-wider transition-all"
+                >
+                  Clear Local Data
+                </button>
+                <div className="flex gap-2">
+                  <button 
+                    type="button"
+                    onClick={() => setIsSettingsOpen(false)}
+                    className="px-4 py-2 border border-white/10 hover:bg-white/5 rounded text-[10px] font-mono uppercase tracking-wider text-gray-400 hover:text-white transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      const trimmedKey = apiKeyInput.trim();
+                      const savedConfig = { apiKey: trimmedKey, modelName: selectedModel };
+                      localStorage.setItem('locus_config', JSON.stringify(savedConfig));
+                      setConfig(savedConfig);
+                      setIsSettingsOpen(false);
+                    }}
+                    className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white border border-cyan-400/30 rounded text-[10px] font-mono uppercase tracking-wider font-bold transition-all shadow-[0_0_15px_rgba(8,145,178,0.2)]"
+                  >
+                    Save Configuration
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Footer Status Bar */}
       <footer className="h-10 bg-[#0f0f0f] border-t border-white/10 px-6 flex items-center justify-between shrink-0">
         <div className="flex gap-6 text-[10px] font-mono text-gray-600 uppercase tracking-tight">
-          <span>VERSION = 0.2</span>
+          <span>VERSION = 0.3</span>
           <span>Latency: <span className="text-gray-400">12ms</span></span>
           <span className="text-cyan-800">Cores: 16_ACTIVE</span>
         </div>
-        <div className="text-[10px] text-gray-600 font-mono uppercase tracking-[0.2em]">
+        <div className="text-[10px] text-gray-600 font-mono uppercase tracking-[0.2em] hidden sm:block">
           Vibecoded by Pavel "Pogoda" Bannikov for Provereno.Media
         </div>
       </footer>

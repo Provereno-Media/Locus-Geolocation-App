@@ -50,6 +50,7 @@ import {
   type LocusConfig,
 } from './services/config';
 import { formatDecimalPair, formatLatitude, formatLongitude } from './lib/coords';
+import { SearchEntryPointFrame } from './components/SearchEntryPointFrame';
 import Markdown from 'react-markdown';
 
 interface HistoryItem {
@@ -399,7 +400,7 @@ export default function App() {
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-amber-500/10 border border-amber-500/30 text-[9px] font-mono font-bold text-amber-500 animate-pulse uppercase tracking-wider hover:bg-amber-500/20 transition-all"
               >
                 <AlertCircle className="w-3 h-3" />
-                <span>UPLINK: OFFLINE (NO KEY)</span>
+                <span>NO API KEY</span>
               </button>
             ) : (
               <button 
@@ -407,7 +408,7 @@ export default function App() {
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-cyan-950/40 border border-cyan-500/30 text-[9px] font-mono font-bold text-cyan-400 uppercase tracking-wider hover:bg-cyan-500/10 transition-all"
               >
                 <Key className="w-3 h-3 text-cyan-400" />
-                <span>UPLINK: SECURED</span>
+                <span>KEY SET (THIS BROWSER)</span>
               </button>
             )}
           </div>
@@ -418,7 +419,7 @@ export default function App() {
             <History className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
             <div className="w-80 bg-white/5 border border-white/10 rounded-full py-1.5 px-9 text-[10px] text-gray-500 font-mono flex items-center gap-2">
               <span className="text-cyan-500 animate-pulse">●</span>
-              ARCHIVE_READY: {history.length} OBJECTS STORED
+              LOCAL HISTORY: {history.length} SAVED IN THIS BROWSER
             </div>
           </div>
 
@@ -460,7 +461,7 @@ export default function App() {
           <div className="flex items-center gap-2">
             <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${config.apiKey ? 'bg-cyan-500' : 'bg-amber-500'}`}></div>
             <span className={`${config.apiKey ? 'text-cyan-400' : 'text-amber-500'} uppercase tracking-widest`}>
-              {config.apiKey ? 'Uplink: Live' : 'Uplink: Offline'}
+              {config.apiKey ? 'Key: set' : 'Key: missing'}
             </span>
           </div>
           <div className="w-8 h-8 rounded-full bg-gray-900 border border-white/10 flex items-center justify-center overflow-hidden">
@@ -503,12 +504,12 @@ export default function App() {
                 >
                   {/* Probability / Confidence */}
                   <section>
-                    <label className="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-3 block">Probability Score</label>
+                    <label className="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-3 block">Model-Reported Confidence</label>
                     {result ? (
                       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                         <div className="flex items-end gap-2">
-                          <span className="text-5xl font-light text-cyan-400">{(result.confidence * 100).toFixed(1)}<span className="text-2xl">%</span></span>
-                          <span className="text-xs text-green-500 mb-2 font-mono uppercase">Validated</span>
+                          <span className="text-5xl font-light text-cyan-400">{(result.confidence * 100).toFixed(0)}<span className="text-2xl">%</span></span>
+                          <span className="text-xs text-amber-500 mb-2 font-mono uppercase">{result.coordinates ? 'Hypothesis · verify manually' : 'Location not determined'}</span>
                         </div>
                         <div className="mt-3 h-1 w-full bg-white/5 rounded-full overflow-hidden">
                           <motion.div 
@@ -638,11 +639,10 @@ export default function App() {
                   {/* Grounding Widget */}
                   {result?.searchEntryPointHtml && (
                     <section className="space-y-3">
-                      <label className="text-[10px] uppercase tracking-widest text-gray-500 font-bold block">Enhanced Grounding</label>
-                      <div 
-                        className="bg-white/5 border border-white/10 rounded-lg p-2 min-h-[40px] overflow-hidden [&_a]:text-cyan-400 [&_a]:hover:underline"
-                        dangerouslySetInnerHTML={{ __html: result.searchEntryPointHtml }}
-                      />
+                      <label className="text-[10px] uppercase tracking-widest text-gray-500 font-bold block">Google Search Suggestions</label>
+                      <div className="bg-white/5 border border-white/10 rounded-lg p-2 overflow-hidden">
+                        <SearchEntryPointFrame html={result.searchEntryPointHtml} />
+                      </div>
                     </section>
                   )}
 
@@ -664,7 +664,7 @@ export default function App() {
                             </div>
                             <div>
                               <p className="text-xs font-semibold text-gray-200">{item}</p>
-                              <p className="text-[10px] text-gray-600 font-mono uppercase tracking-tighter">Feature Confirmed</p>
+                              <p className="text-[10px] text-gray-600 font-mono uppercase tracking-tighter">Reported by model</p>
                             </div>
                           </motion.div>
                         ))
@@ -722,7 +722,7 @@ export default function App() {
                   className="p-4 space-y-4"
                 >
                   <div className="flex items-center justify-between px-2">
-                    <label className="text-[10px] uppercase tracking-widest text-gray-500 font-bold">Encrypted Archive</label>
+                    <label className="text-[10px] uppercase tracking-widest text-gray-500 font-bold">Local History (not encrypted)</label>
                     {history.length > 0 && (
                       <button 
                         onClick={() => { if(confirm('Purge all archived records?')) setHistory([]) }}
@@ -752,7 +752,7 @@ export default function App() {
                           <div className="min-w-0 flex-1">
                             <h4 className="text-[11px] font-bold text-gray-300 truncate tracking-tight">{item.result.locationName}</h4>
                             <div className="flex items-center gap-2 mt-1">
-                              <span className="text-[9px] text-cyan-600 font-mono">{(item.result.confidence * 100).toFixed(0)}% CONF</span>
+                              <span className="text-[9px] text-cyan-600 font-mono">{item.result.coordinates ? `${(item.result.confidence * 100).toFixed(0)}% (model)` : 'NOT DETERMINED'}</span>
                               <span className="text-[9px] text-gray-600 font-mono">{new Date(item.timestamp).toLocaleDateString()}</span>
                             </div>
                           </div>
@@ -773,9 +773,9 @@ export default function App() {
 
           <div className="mt-auto p-4 border-t border-white/5 bg-black/20">
             <div className="text-[10px] text-gray-600 font-mono uppercase leading-relaxed">
-              SESSION_TOKEN: 0x921A_F2<br/>
-              DECODING: {isAnalyzing ? 'ACTIVE' : 'STANDBY'}<br/>
-              BUFFER: 100%
+              MODEL: {result?.model ?? config.modelName}<br/>
+              STATUS: {isAnalyzing ? 'ANALYZING' : 'IDLE'}
+              {result?.modelFallbackFrom && (<><br/><span className="text-amber-600">{result.modelFallbackFrom} unavailable, used {result.model}</span></>)}
             </div>
           </div>
         </aside>
@@ -811,8 +811,12 @@ export default function App() {
                       <Compass className="w-10 h-10" />
                     </div>
                   )}
-                  <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/80 rounded border border-white/10 text-[7px] font-mono text-cyan-400 uppercase tracking-[0.2em] pointer-events-none">
-                    Map_Link: Active
+                  <div className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-black/80 rounded text-[7px] font-mono text-gray-400 z-[1000]">
+                    {analysisMode === 'satellite' ? (
+                      <a href="https://www.esri.com/" target="_blank" rel="noopener noreferrer">Tiles © Esri</a>
+                    ) : (
+                      <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap</a>
+                    )}
                   </div>
                </div>
 
@@ -989,10 +993,10 @@ export default function App() {
                  </div>
                  <div className="flex flex-col">
                    <span className="text-[10px] font-mono font-bold text-cyan-400 uppercase tracking-widest leading-none mb-1">
-                     LOCUS Uplink _
+                     LOCUS Chat
                    </span>
                    <span className="text-[8px] font-mono text-cyan-600 uppercase tracking-widest leading-none">
-                     Secure Channel Engaged
+                     Direct to Gemini API with your key
                    </span>
                  </div>
                </div>
@@ -1093,7 +1097,7 @@ export default function App() {
                  </button>
               </form>
               <div className="mt-2 text-[8px] font-mono text-gray-600 text-center uppercase tracking-widest">
-                 System: {config.modelName} / BYOK UPLINK Active
+                 Model: {result.model} · answers need independent verification
               </div>
             </div>
           </aside>
@@ -1136,10 +1140,16 @@ export default function App() {
                 <div className="p-3.5 bg-cyan-950/20 border border-cyan-500/20 rounded-lg space-y-2 text-xs leading-relaxed text-gray-400 font-mono">
                   <div className="flex items-center gap-2 text-cyan-400 font-bold">
                     <Info className="w-4 h-4 shrink-0" />
-                    <span>DIRECT API CONNECTION (BYOK)</span>
+                    <span>YOUR OWN GEMINI KEY (BYOK)</span>
                   </div>
                   <p>
-                    LOCUS runs entirely client-side. Your Google Gemini API Key is stored securely in your browser's local storage and is sent directly to Google's API servers.
+                    LOCUS runs in your browser. Images and your key go directly to Google's Gemini API; Provereno servers never receive them.
+                  </p>
+                  <p>
+                    The key is saved in this browser's local storage without encryption. Anyone with access to this browser profile can read it. Restrict the key in Google Cloud Console to the Generative Language API.
+                  </p>
+                  <p className="text-amber-500/90">
+                    On Google's free tier, submitted images may be used to improve Google products and may be seen by human reviewers. Do not upload sensitive or unpublished material with a free-tier key.
                   </p>
                   <a 
                     href="https://aistudio.google.com/app/apikey" 
@@ -1147,7 +1157,7 @@ export default function App() {
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 text-cyan-400 hover:text-cyan-300 hover:underline pt-1 font-bold"
                   >
-                    Get your free API key at Google AI Studio <ExternalLink className="w-3.5 h-3.5" />
+                    Get an API key in Google AI Studio <ExternalLink className="w-3.5 h-3.5" />
                   </a>
                 </div>
 
@@ -1178,8 +1188,9 @@ export default function App() {
                       onChange={e => setSelectedModel(e.target.value)}
                       className="w-full bg-[#111] border border-white/10 focus:border-cyan-500/50 rounded px-3 py-2.5 text-xs font-mono text-gray-300 focus:outline-none transition-all"
                     >
-                      <option value="gemini-3.5-flash">Gemini 3.5 Flash (Recommended: Fast, multimodal, search/maps grounding)</option>
-                      <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro (Deep reasoning, slower)</option>
+                      {MODEL_OPTIONS.map((m) => (
+                        <option key={m.id} value={m.id}>{m.label}</option>
+                      ))}
                     </select>
                   </div>
                 </div>
@@ -1190,13 +1201,12 @@ export default function App() {
                 <button 
                   type="button"
                   onClick={() => {
-                    if (confirm("Are you sure you want to purge all configuration data and analysis history from this device?")) {
-                      localStorage.removeItem('locus_config');
-                      localStorage.removeItem('osint_history');
-                      setConfig({ apiKey: '', modelName: 'gemini-3.5-flash' });
+                    if (confirm("Delete the saved API key, settings and analysis history from this browser?")) {
+                      clearLocalData();
+                      setConfig({ apiKey: '', modelName: DEFAULT_MODEL });
                       setHistory([]);
                       setApiKeyInput('');
-                      setSelectedModel('gemini-3.5-flash');
+                      setSelectedModel(DEFAULT_MODEL);
                       setIsSettingsOpen(false);
                     }
                   }}
@@ -1217,7 +1227,9 @@ export default function App() {
                     onClick={() => {
                       const trimmedKey = apiKeyInput.trim();
                       const savedConfig = { apiKey: trimmedKey, modelName: selectedModel };
-                      localStorage.setItem('locus_config', JSON.stringify(savedConfig));
+                      if (!saveConfig(savedConfig)) {
+                        alert('Could not save settings: browser storage is unavailable.');
+                      }
                       setConfig(savedConfig);
                       setIsSettingsOpen(false);
                     }}
@@ -1235,9 +1247,7 @@ export default function App() {
       {/* Footer Status Bar */}
       <footer className="h-10 bg-[#0f0f0f] border-t border-white/10 px-6 flex items-center justify-between shrink-0">
         <div className="flex gap-6 text-[10px] font-mono text-gray-600 uppercase tracking-tight">
-          <span>VERSION = 0.3</span>
-          <span>Latency: <span className="text-gray-400">12ms</span></span>
-          <span className="text-cyan-800">Cores: 16_ACTIVE</span>
+          <span>VERSION 0.4</span>
         </div>
         <div className="text-[10px] text-gray-600 font-mono uppercase tracking-[0.2em] hidden sm:block">
           Vibecoded by Pavel "Pogoda" Bannikov for Provereno.Media

@@ -39,3 +39,15 @@ src/
     grounding.ts                  sources and queries from grounding metadata
     errors.ts                     error mapping
 ```
+
+## Deployment
+
+`npm run build` produces a static site in `dist/`; any static host works.
+
+The build injects a Content Security Policy as a `<meta>` tag (`CONTENT_SECURITY_POLICY` in `vite.config.ts`). The host should also send it as an HTTP header, adding `frame-ancestors 'none'`, which browsers ignore in `<meta>`:
+
+```
+Content-Security-Policy: <value of CONTENT_SECURITY_POLICY>; frame-ancestors 'none'
+```
+
+When adding a new external service (map tiles, API endpoints, fonts), update the policy, or the browser will block it.

@@ -112,7 +112,10 @@ function mimeTypeOf(dataUrl: string): string {
 }
 
 function errorMessage(err: unknown): string {
-  if (err instanceof LocusError) return err.message;
+  if (err instanceof LocusError) {
+    const showDetail = (err.code === 'UNKNOWN' || err.code === 'PARSE') && err.detail;
+    return showDetail ? `${err.message} (${err.detail!.slice(0, 300)})` : err.message;
+  }
   return err instanceof Error ? err.message : 'Analysis failed. Please try again.';
 }
 
@@ -187,6 +190,8 @@ export default function App() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   
   const [history, setHistory] = useState<HistoryItem[]>(loadHistory);
+  const currentImageRef = useRef<string | null>(null);
+  currentImageRef.current = image;
   const [activeTab, setActiveTab] = useState<'analysis' | 'history'>('analysis');
   const [analysisMode, setAnalysisMode] = useState<AnalysisMode>('visual');
   const [groundingTool, setGroundingTool] = useState<GroundingTool>('maps');
@@ -280,6 +285,7 @@ export default function App() {
       return;
     }
     if (!image) return;
+    const requestImage = image;
     setIsAnalyzing(true);
     setError(null);
     try {
@@ -289,18 +295,20 @@ export default function App() {
         mode: analysisMode,
         groundingTool,
       });
+      // The user may have replaced or cleared the image while the request was running.
+      if (currentImageRef.current !== requestImage) return;
       setResult(res);
 
       // Add to history
       const newItem: HistoryItem = {
         id: crypto.randomUUID(),
-        image,
+        image: requestImage,
         result: res,
         timestamp: Date.now()
       };
       setHistory(prev => [newItem, ...prev].slice(0, MAX_HISTORY));
     } catch (err) {
-      setError(errorMessage(err));
+      if (currentImageRef.current === requestImage) setError(errorMessage(err));
     } finally {
       setIsAnalyzing(false);
     }
@@ -1229,6 +1237,7 @@ export default function App() {
                       const savedConfig = { apiKey: trimmedKey, modelName: selectedModel };
                       if (!saveConfig(savedConfig)) {
                         alert('Could not save settings: browser storage is unavailable.');
+                        return;
                       }
                       setConfig(savedConfig);
                       setIsSettingsOpen(false);

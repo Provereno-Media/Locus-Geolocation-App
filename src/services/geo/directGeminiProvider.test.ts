@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const generateContent = vi.fn();
+const chatsCreate = vi.fn();
 const ctorArgs: unknown[] = [];
 
 vi.mock('@google/genai', () => ({
   GoogleGenAI: class {
     models = { generateContent };
-    chats = { create: vi.fn() };
+    chats = { create: chatsCreate };
     constructor(opts: unknown) {
       ctorArgs.push(opts);
     }
@@ -32,6 +33,7 @@ const provider = (modelName = 'gemini-3.8-flash') =>
 
 beforeEach(() => {
   generateContent.mockReset();
+  chatsCreate.mockReset();
   ctorArgs.length = 0;
 });
 
@@ -95,5 +97,12 @@ describe('DirectGeminiProvider', () => {
     const r = await provider('gemini-3.1-pro-preview').analyzeImage(input);
     expect(generateContent.mock.calls[1][0].model).toBe('gemini-3.8-flash');
     expect(r.modelFallbackFrom).toBe('gemini-3.1-pro-preview');
+  });
+
+  it('chats with the configured model when a stored result names an unknown model', async () => {
+    generateContent.mockResolvedValue(answer(good));
+    const result = { ...(await provider().analyzeImage(input)), model: 'unknown' };
+    provider('gemini-3.5-flash').createChatSession({ base64Data: 'AAAA', mimeType: 'image/jpeg' }, result);
+    expect(chatsCreate.mock.calls[0][0].model).toBe('gemini-3.5-flash');
   });
 });

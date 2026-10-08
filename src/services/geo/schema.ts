@@ -4,6 +4,15 @@ import type { Coordinates, GeolocationResult } from './types';
 const toNumber = (value: unknown) =>
   typeof value === 'string' && value.trim() !== '' ? Number(value) : value;
 
+/** Accepts numbers, numeric strings and strings like "59.43° N" / "24.75 W". */
+const toCoordinate = (value: unknown) => {
+  if (typeof value !== 'string') return value;
+  const m = /^\s*(-?\d+(?:\.\d+)?)\s*°?\s*([NSEWnsew])?\s*$/.exec(value);
+  if (!m) return Number.NaN;
+  const n = Number(m[1]);
+  return m[2] && /[SWsw]/.test(m[2]) ? -Math.abs(n) : n;
+};
+
 const stringList = z
   .array(z.unknown())
   .nullish()
@@ -16,7 +25,7 @@ const coordinatesSchema = z.preprocess(
     if (!value || typeof value !== 'object') return null;
     const { lat, lng } = value as { lat?: unknown; lng?: unknown };
     if (lat == null || lng == null) return null;
-    return { lat: toNumber(lat), lng: toNumber(lng) };
+    return { lat: toCoordinate(lat), lng: toCoordinate(lng) };
   },
   z
     .object({
@@ -26,7 +35,7 @@ const coordinatesSchema = z.preprocess(
     .nullable()
     // (0, 0) is a common placeholder for "unknown"; treat it as no answer.
     .transform((c): Coordinates | null => (c && (c.lat !== 0 || c.lng !== 0) ? c : null)),
-);
+).catch(null); // unusable coordinates mean "not determined", not a failed analysis
 
 const confidenceSchema = z.preprocess(
   toNumber,
@@ -122,14 +131,25 @@ const storedSourceSchema = z.object({
  * Reads a result saved in history, including the pre-0.4 format
  * (searchQueriesExecuted, no metadata fields). Returns null if unusable.
  */
+const storedGeolocationSchema = z.object({
+  locationName: modelGeolocationSchema.shape.locationName.catch('Location not determined'),
+  coordinates: coordinatesSchema,
+  confidence: confidenceSchema.catch(0),
+  evidence: stringList.catch([]),
+  description: modelGeolocationSchema.shape.description.catch(''),
+  extractedText: stringList.catch([]),
+  identifiedSymbols: stringList.catch([]),
+});
+
 export function normalizeStoredResult(raw: unknown): GeolocationResult | null {
-  const base = modelGeolocationSchema.safeParse(raw);
+  if (!raw || typeof raw !== 'object') return null;
+  const base = storedGeolocationSchema.safeParse(raw);
   if (!base.success) return null;
-  const r = (raw ?? {}) as Record<string, unknown>;
+  const r = raw as Record<string, unknown>;
 
   const sources = z.array(storedSourceSchema).catch([]).parse(r.sources ?? []);
-  const groundingQueries = stringList.parse(r.groundingQueries);
-  const modelReportedQueries = stringList.parse(r.modelReportedQueries ?? r.searchQueriesExecuted);
+  const groundingQueries = stringList.catch([]).parse(r.groundingQueries);
+  const modelReportedQueries = stringList.catch([]).parse(r.modelReportedQueries ?? r.searchQueriesExecuted);
 
   return {
     locationName: base.data.locationName,

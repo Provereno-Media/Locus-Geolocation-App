@@ -1,5 +1,5 @@
 import { GoogleGenAI, type GenerateContentResponse } from '@google/genai';
-import { DEFAULT_MODEL, getConfig, type LocusConfig } from '../config';
+import { DEFAULT_MODEL, getConfig, isKnownModel, type LocusConfig } from '../config';
 import { LocusError, mapGeminiError } from './errors';
 import { extractGrounding } from './grounding';
 import { buildChatSystemInstruction, buildGeolocationPrompt } from './prompt';
@@ -40,9 +40,10 @@ export class DirectGeminiProvider implements GeoProvider {
   }
 
   createChatSession(image: ImageInput, result: GeolocationResult): ChatSession {
-    const { apiKey } = this.requireConfig();
+    const { apiKey, modelName } = this.requireConfig();
+    // Results from old history may name a model that is unknown or withdrawn.
     const chat = this.getClient(apiKey).chats.create({
-      model: result.model,
+      model: isKnownModel(result.model) ? result.model : modelName,
       config: {
         systemInstruction: buildChatSystemInstruction(result),
         temperature: 0.3,
@@ -62,6 +63,7 @@ export class DirectGeminiProvider implements GeoProvider {
           imageSent = true;
           return response.text ?? '';
         } catch (error) {
+          console.error('Gemini chat request failed', error);
           throw mapGeminiError(error);
         }
       },
@@ -146,6 +148,7 @@ export class DirectGeminiProvider implements GeoProvider {
         },
       });
     } catch (error) {
+      console.error('Gemini request failed', error);
       throw mapGeminiError(error);
     }
   }

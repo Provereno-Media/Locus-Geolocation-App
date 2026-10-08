@@ -72,9 +72,16 @@ describe('parseModelGeolocation', () => {
     }
   });
 
-  it('rejects out-of-range coordinates', () => {
-    const r = parseModelGeolocation(JSON.stringify({ ...valid, coordinates: { lat: 120, lng: 10 } }));
-    expect(r.ok).toBe(false);
+  it('turns unusable coordinates into "not determined" instead of failing', () => {
+    for (const coordinates of [{ lat: 120, lng: 10 }, { lat: 'north', lng: 'east' }, 'Tallinn']) {
+      const r = parseModelGeolocation(JSON.stringify({ ...valid, coordinates }));
+      expect(r.ok && r.data.coordinates).toBeNull();
+    }
+  });
+
+  it('reads coordinates written with degrees and hemisphere letters', () => {
+    const r = parseModelGeolocation(JSON.stringify({ ...valid, coordinates: { lat: '33.86° S', lng: '151.21 E' } }));
+    expect(r.ok && r.data.coordinates).toEqual({ lat: -33.86, lng: 151.21 });
   });
 
   it('rejects malformed JSON', () => {
@@ -92,7 +99,16 @@ describe('normalizeStoredResult', () => {
     expect(r?.model).toBe('unknown');
   });
 
-  it('returns null for garbage', () => {
-    expect(normalizeStoredResult({ coordinates: { lat: 999, lng: 0 } })).toBeNull();
+  it('keeps legacy entries with malformed fields instead of dropping them', () => {
+    const r = normalizeStoredResult({ ...valid, evidence: 'single string', locationName: 42, coordinates: { lat: 95, lng: 0 } });
+    expect(r).not.toBeNull();
+    expect(r?.evidence).toEqual([]);
+    expect(r?.locationName).toBe('Location not determined');
+    expect(r?.coordinates).toBeNull();
+  });
+
+  it('returns null for non-objects', () => {
+    expect(normalizeStoredResult(null)).toBeNull();
+    expect(normalizeStoredResult('x')).toBeNull();
   });
 });

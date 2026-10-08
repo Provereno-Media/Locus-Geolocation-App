@@ -3,7 +3,7 @@
 **Статус:** Предложено
 **Дата:** 2026-10-08
 **Состояние кода на момент записи:** `main` @ `1a2487d`
-**Статусы задач обновлены:** 2026-10-08, `main` @ `cf2b388`
+**Последнее обновление:** 2026-10-08, `main` @ `cfe6048`
 
 > Публичная сокращённая версия. Полная версия с распределением задач и открытыми вопросами хранится во внутренних документах проекта.
 
@@ -102,12 +102,23 @@ LOCUS — веб-приложение для геолокации изображ
 ### Этап 1 — MVP: только Free (BYOK)
 1. [x] Интерфейс `GeoProvider` и реализация `DirectGeminiProvider`.
 2. [x] Удалить `define` с `GEMINI_API_KEY` из `vite.config.ts`.
-3. [x] CSP (`<meta>` при сборке), Leaflet и шрифты из npm, `searchEntryPointHtml` в `<iframe sandbox>`. CSP-заголовок с `frame-ancestors 'none'` на хостинге — вместе с п. 8.
+3. [ ] CSP, ассеты из npm, изоляция HTML из API:
+   - [x] Leaflet и шрифты собираются из npm, сторонних CDN нет;
+   - [x] `searchEntryPointHtml` рендерится в `<iframe sandbox>` без выполнения скриптов;
+   - [x] CSP как `<meta>`, встраивается при сборке;
+   - [ ] CSP как HTTP-заголовок с `frame-ancestors 'none'` — вместе с п. 8.
 4. [x] Опция «не запоминать ключ» (`sessionStorage`). Рекомендация в UI ограничивать ключ: только Generative Language API и привязка к домену.
 5. [x] Нейтральная ссылка на получение ключа, предупреждение об условиях бесплатного тарифа Gemini.
 6. [x] Убрать вводящие в заблуждение подписи в интерфейсе.
-7. [x] Исправления из технического разбора: zod-валидация, `response.text`, модель по умолчанию, убран `User-Agent`, N/S и E/W, реальные `webSearchQueries`, история в IndexedDB.
-8. [ ] Деплой: статический хостинг и workflow.
+7. [x] Исправления из технического разбора:
+   - zod-валидация ответа модели и `response.text`;
+   - для Maps запрос без `responseMimeType`. Покрыто юнит-тестом на конфиг запроса, живым запросом к API не проверялось;
+   - модель по умолчанию `gemini-3.8-flash`;
+   - убран заголовок `User-Agent`;
+   - N/S и E/W для координат;
+   - реальные `webSearchQueries` из grounding-метаданных;
+   - история в IndexedDB.
+8. [ ] Деплой: статический хостинг с HTTP-заголовками, превью на PR.
 
 ### Этап 2 — закрытая бета Pro
 1. [ ] Бэкенд (`/api/geolocate`, `/api/chat`), ключ в Secret Manager.
@@ -128,3 +139,7 @@ LOCUS — веб-приложение для геолокации изображ
 - Модели Gemini: https://ai.google.dev/gemini-api/docs/models
 - Grounding with Google Maps: https://ai.google.dev/gemini-api/docs/maps-grounding
 - Structured outputs: https://ai.google.dev/gemini-api/docs/structured-output
+
+## История изменений
+- **2026-10-08** — первая публичная версия (`244f153`).
+- **2026-10-08** — статусы задач Этапа 1 сверены с кодом, `main` @ `cfe6048`.

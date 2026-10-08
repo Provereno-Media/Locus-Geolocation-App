@@ -1,6 +1,9 @@
 import { z } from 'zod';
 import type { Coordinates, GeolocationResult } from './types';
 
+// zod probes `new Function` to enable its JIT; the CSP forbids eval, so skip the probe.
+z.config({ jitless: true });
+
 const toNumber = (value: unknown) =>
   typeof value === 'string' && value.trim() !== '' ? Number(value) : value;
 

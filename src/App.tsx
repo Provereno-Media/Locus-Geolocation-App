@@ -34,7 +34,6 @@ import {
 import {
   getGeoProvider,
   LocusError,
-  normalizeStoredResult,
   type AnalysisMode,
   type ChatSession,
   type GeolocationResult,
@@ -44,21 +43,22 @@ import {
   clearLocalData,
   DEFAULT_MODEL,
   getConfig,
-  HISTORY_KEY,
   MODEL_OPTIONS,
   saveConfig,
   type LocusConfig,
 } from './services/config';
 import { formatDecimalPair, formatLatitude, formatLongitude } from './lib/coords';
 import { SearchEntryPointFrame } from './components/SearchEntryPointFrame';
+import {
+  isHistoryEnabled,
+  loadHistory,
+  MAX_HISTORY,
+  mergeHistory,
+  saveHistory,
+  setHistoryEnabled,
+  type HistoryItem,
+} from './lib/historyStore';
 import Markdown from 'react-markdown';
-
-interface HistoryItem {
-  id: string;
-  image: string;
-  result: GeolocationResult;
-  timestamp: number;
-}
 
 // Fix for Leaflet default marker icon
 const DefaultIcon = L.icon({
@@ -72,39 +72,6 @@ const DefaultIcon = L.icon({
 });
 
 L.Marker.prototype.options.icon = DefaultIcon;
-
-const MAX_HISTORY = 20;
-
-function loadHistory(): HistoryItem[] {
-  try {
-    const raw = localStorage.getItem(HISTORY_KEY);
-    if (!raw) return [];
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.flatMap((item): HistoryItem[] => {
-      if (!item || typeof item !== 'object') return [];
-      const { id, image, timestamp, result } = item as Record<string, unknown>;
-      const normalized = normalizeStoredResult(result);
-      if (typeof id !== 'string' || typeof image !== 'string' || !normalized) return [];
-      return [{ id, image, timestamp: typeof timestamp === 'number' ? timestamp : 0, result: normalized }];
-    });
-  } catch (e) {
-    console.error('Could not read history from localStorage', e);
-    return [];
-  }
-}
-
-/** Full images are large; on quota errors keep fewer items instead of failing. */
-function persistHistory(items: HistoryItem[]): void {
-  for (const size of [items.length, 10, 5, 1, 0]) {
-    try {
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(items.slice(0, size)));
-      return;
-    } catch (e) {
-      if (size === 0) console.error('Could not save history to localStorage', e);
-    }
-  }
-}
 
 function mimeTypeOf(dataUrl: string): string {
   const match = /^data:([^;,]+)[;,]/.exec(dataUrl);
@@ -189,7 +156,9 @@ export default function App() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
   
-  const [history, setHistory] = useState<HistoryItem[]>(loadHistory);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [historyEnabled, setHistoryEnabledState] = useState(isHistoryEnabled);
   const currentImageRef = useRef<string | null>(null);
   currentImageRef.current = image;
   const [activeTab, setActiveTab] = useState<'analysis' | 'history'>('analysis');
@@ -209,8 +178,27 @@ export default function App() {
   };
 
   useEffect(() => {
-    persistHistory(history);
-  }, [history]);
+    let cancelled = false;
+    loadHistory().then((stored) => {
+      if (cancelled) return;
+      // Analyses finished before the store answered are kept.
+      setHistory((prev) => mergeHistory(prev, stored));
+      setHistoryLoaded(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    // Writing before the initial load would overwrite the stored history.
+    if (historyLoaded) void saveHistory(history);
+  }, [history, historyLoaded]);
+
+  const toggleHistoryEnabled = (enabled: boolean) => {
+    setHistoryEnabled(enabled);
+    setHistoryEnabledState(enabled);
+  };
 
   useEffect(() => {
     if (result?.coordinates) {
@@ -299,14 +287,15 @@ export default function App() {
       if (currentImageRef.current !== requestImage) return;
       setResult(res);
 
-      // Add to history
-      const newItem: HistoryItem = {
-        id: crypto.randomUUID(),
-        image: requestImage,
-        result: res,
-        timestamp: Date.now()
-      };
-      setHistory(prev => [newItem, ...prev].slice(0, MAX_HISTORY));
+      if (historyEnabled) {
+        const newItem: HistoryItem = {
+          id: crypto.randomUUID(),
+          image: requestImage,
+          result: res,
+          timestamp: Date.now()
+        };
+        setHistory(prev => [newItem, ...prev].slice(0, MAX_HISTORY));
+      }
     } catch (err) {
       if (currentImageRef.current === requestImage) setError(errorMessage(err));
     } finally {
@@ -427,7 +416,7 @@ export default function App() {
             <History className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
             <div className="w-80 bg-white/5 border border-white/10 rounded-full py-1.5 px-9 text-[10px] text-gray-500 font-mono flex items-center gap-2">
               <span className="text-cyan-500 animate-pulse">●</span>
-              LOCAL HISTORY: {history.length} SAVED IN THIS BROWSER
+              LOCAL HISTORY: {history.length} SAVED IN THIS BROWSER{!historyEnabled && ' · SAVING OFF'}
             </div>
           </div>
 
@@ -739,6 +728,18 @@ export default function App() {
                         <Trash2 className="w-3 h-3" /> Purge
                       </button>
                     )}
+                  </div>
+                  <div className="px-2 space-y-2 text-[10px] font-mono text-gray-500 leading-relaxed">
+                    <p>Analyses and images are stored only in this browser (IndexedDB), without encryption. Anyone with access to this browser profile can open them.</p>
+                    <label className="flex items-center gap-2 text-gray-400 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={historyEnabled}
+                        onChange={e => toggleHistoryEnabled(e.target.checked)}
+                        className="accent-cyan-500"
+                      />
+                      Save new analyses to history
+                    </label>
                   </div>
                   
                   {history.length === 0 ? (

@@ -1063,7 +1063,7 @@ export default function App() {
                   </div>
                   <div className="bg-cyan-950/5 border border-cyan-900/30 border-l-2 border-l-cyan-600 rounded-sm p-3.5 flex items-center gap-3">
                     <Loader2 className="w-4 h-4 text-cyan-500 hover:text-cyan-400 animate-spin" />
-                    <span className="text-xs font-mono text-cyan-600 animate-pulse">Processing query via uplink</span>
+                    <span className="text-xs font-mono text-cyan-600 animate-pulse">Waiting for Gemini…</span>
                   </div>
                 </div>
               )}

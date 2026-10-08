@@ -14,6 +14,8 @@ import type {
 
 const MAX_PARSE_ATTEMPTS = 2;
 
+type ProviderConfig = Pick<LocusConfig, 'apiKey' | 'modelName'>;
+
 /**
  * Free tier (ADR-001): the browser calls Gemini directly with the user's own key.
  * Images never pass through Provereno infrastructure.
@@ -24,7 +26,7 @@ export class DirectGeminiProvider implements GeoProvider {
   private client: GoogleGenAI | null = null;
   private clientKey: string | null = null;
 
-  constructor(private readonly readConfig: () => LocusConfig = getConfig) {}
+  constructor(private readonly readConfig: () => ProviderConfig = getConfig) {}
 
   async analyzeImage(input: AnalyzeImageInput): Promise<GeolocationResult> {
     const { apiKey, modelName } = this.requireConfig();
@@ -70,7 +72,7 @@ export class DirectGeminiProvider implements GeoProvider {
     };
   }
 
-  private requireConfig(): LocusConfig {
+  private requireConfig(): ProviderConfig {
     const config = this.readConfig();
     if (!config.apiKey) throw new LocusError('NO_KEY');
     return config;

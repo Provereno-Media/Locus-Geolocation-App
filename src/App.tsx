@@ -42,7 +42,7 @@ import {
 } from './services/geo';
 import {
   clearLocalData,
-  DEFAULT_MODEL,
+  DEFAULT_CONFIG,
   getConfig,
   HISTORY_KEY,
   MODEL_OPTIONS,
@@ -201,10 +201,12 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState(config.apiKey);
   const [selectedModel, setSelectedModel] = useState(config.modelName);
+  const [rememberKeyInput, setRememberKeyInput] = useState(config.rememberKey);
 
   const openSettings = () => {
     setApiKeyInput(config.apiKey);
     setSelectedModel(config.modelName);
+    setRememberKeyInput(config.rememberKey);
     setIsSettingsOpen(true);
   };
 
@@ -1126,7 +1128,7 @@ export default function App() {
               initial={{ scale: 0.95, y: 10 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.95, y: 10 }}
-              className="w-full max-w-md bg-[#0a0a0a] border border-cyan-500/30 rounded-xl overflow-hidden shadow-[0_0_50px_rgba(8,145,178,0.25)] flex flex-col"
+              className="w-full max-w-md max-h-[calc(100dvh-2rem)] bg-[#0a0a0a] border border-cyan-500/30 rounded-xl overflow-hidden shadow-[0_0_50px_rgba(8,145,178,0.25)] flex flex-col"
               onClick={e => e.stopPropagation()}
             >
               {/* Header */}
@@ -1144,7 +1146,7 @@ export default function App() {
               </div>
 
               {/* Body */}
-              <div className="p-6 space-y-6">
+              <div className="p-6 space-y-6 overflow-y-auto min-h-0">
                 <div className="p-3.5 bg-cyan-950/20 border border-cyan-500/20 rounded-lg space-y-2 text-xs leading-relaxed text-gray-400 font-mono">
                   <div className="flex items-center gap-2 text-cyan-400 font-bold">
                     <Info className="w-4 h-4 shrink-0" />
@@ -1154,7 +1156,10 @@ export default function App() {
                     LOCUS runs in your browser. Images and your key go directly to Google's Gemini API; Provereno servers never receive them.
                   </p>
                   <p>
-                    The key is saved in this browser's local storage without encryption. Anyone with access to this browser profile can read it. Restrict the key in Google Cloud Console to the Generative Language API.
+                    The key is stored in this browser without encryption: in local storage if "Remember key" is on, otherwise only in this tab until it is closed. Anyone with access to this browser profile can read it.
+                  </p>
+                  <p>
+                    Restrict the key in Google Cloud Console → Credentials: under API restrictions allow only the Generative Language API; under Application restrictions choose Websites and add the LOCUS domain.
                   </p>
                   <p className="text-amber-500/90">
                     On Google's free tier, submitted images may be used to improve Google products and may be seen by human reviewers. Do not upload sensitive or unpublished material with a free-tier key.
@@ -1185,6 +1190,18 @@ export default function App() {
                         className="w-full bg-[#111] border border-white/10 focus:border-cyan-500/50 rounded pl-10 pr-4 py-2.5 text-xs font-mono text-white placeholder-gray-700 focus:outline-none transition-all"
                       />
                     </div>
+                    <label className="flex items-start gap-2 pt-1 text-[11px] font-mono text-gray-400 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={rememberKeyInput}
+                        onChange={e => setRememberKeyInput(e.target.checked)}
+                        className="mt-0.5 accent-cyan-500"
+                      />
+                      <span>
+                        Remember key on this device
+                        <span className="block text-gray-600">Off: you re-enter the key in each new tab; it is erased when the tab is closed.</span>
+                      </span>
+                    </label>
                   </div>
 
                   <div className="space-y-2">
@@ -1211,10 +1228,11 @@ export default function App() {
                   onClick={() => {
                     if (confirm("Delete the saved API key, settings and analysis history from this browser?")) {
                       clearLocalData();
-                      setConfig({ apiKey: '', modelName: DEFAULT_MODEL });
+                      setConfig(DEFAULT_CONFIG);
                       setHistory([]);
                       setApiKeyInput('');
-                      setSelectedModel(DEFAULT_MODEL);
+                      setSelectedModel(DEFAULT_CONFIG.modelName);
+                      setRememberKeyInput(DEFAULT_CONFIG.rememberKey);
                       setIsSettingsOpen(false);
                     }
                   }}
@@ -1234,7 +1252,7 @@ export default function App() {
                     type="button"
                     onClick={() => {
                       const trimmedKey = apiKeyInput.trim();
-                      const savedConfig = { apiKey: trimmedKey, modelName: selectedModel };
+                      const savedConfig = { apiKey: trimmedKey, modelName: selectedModel, rememberKey: rememberKeyInput };
                       if (!saveConfig(savedConfig)) {
                         alert('Could not save settings: browser storage is unavailable.');
                         return;

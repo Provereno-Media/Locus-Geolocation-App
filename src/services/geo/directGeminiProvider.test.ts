@@ -99,6 +99,28 @@ describe('DirectGeminiProvider', () => {
     expect(r.modelFallbackFrom).toBe('gemini-3.1-pro-preview');
   });
 
+  it('reports a grounding-only quota error when a plain request passes', async () => {
+    generateContent
+      .mockRejectedValueOnce(Object.assign(new Error('You exceeded your current quota'), { status: 429 }))
+      .mockResolvedValueOnce({ text: 'pong' });
+    await expect(provider().analyzeImage(input)).rejects.toMatchObject({ code: 'GROUNDING_QUOTA' });
+    const probe = generateContent.mock.calls[1][0];
+    expect(probe.config?.tools).toBeUndefined();
+    expect(probe.model).toBe('gemini-3.8-flash');
+  });
+
+  it('keeps the quota error when a plain request also fails', async () => {
+    generateContent.mockRejectedValue(Object.assign(new Error('You exceeded your current quota'), { status: 429 }));
+    await expect(provider().analyzeImage(input)).rejects.toMatchObject({ code: 'QUOTA' });
+    expect(generateContent).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not probe on other errors', async () => {
+    generateContent.mockRejectedValue(Object.assign(new Error('API key not valid'), { status: 400 }));
+    await expect(provider().analyzeImage(input)).rejects.toMatchObject({ code: 'AUTH' });
+    expect(generateContent).toHaveBeenCalledTimes(1);
+  });
+
   it('chats with the configured model when a stored result names an unknown model', async () => {
     generateContent.mockResolvedValue(answer(good));
     const result = { ...(await provider().analyzeImage(input)), model: 'unknown' };

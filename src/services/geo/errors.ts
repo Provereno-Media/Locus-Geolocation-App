@@ -2,6 +2,7 @@ export type LocusErrorCode =
   | 'NO_KEY'
   | 'AUTH'
   | 'QUOTA'
+  | 'GROUNDING_QUOTA'
   | 'REGION'
   | 'MODEL_UNAVAILABLE'
   | 'BLOCKED'
@@ -13,6 +14,8 @@ const MESSAGES: Record<LocusErrorCode, string> = {
   NO_KEY: 'Gemini API key is not set. Open Settings to add your key.',
   AUTH: 'Gemini rejected the API key. Check the key in Settings.',
   QUOTA: 'Gemini rate limit or quota exceeded. Try again later or use another key.',
+  GROUNDING_QUOTA:
+    'Your key works, but Google refused Search/Maps grounding for it (quota exceeded). LOCUS needs grounding to check locations: use a key from a Google AI Studio project with billing enabled.',
   REGION: 'Gemini API is not available in your region.',
   MODEL_UNAVAILABLE: 'The selected model is not available for this key. Choose another model in Settings.',
   BLOCKED: 'Gemini returned no answer for this image (blocked or empty response).',

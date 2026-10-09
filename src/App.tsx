@@ -1345,7 +1345,7 @@ export default function App() {
                     onClick={() => {
                       const cleanKey = normalizeApiKey(apiKeyInput);
                       if (cleanKey && !hasValidKeyChars(cleanKey)) {
-                        setKeyInputError('The key contains invalid characters (for example Cyrillic letters or symbols). Clear the field and paste the key again from Google AI Studio.');
+                        setKeyInputError('The key contains invalid characters (for example Cyrillic letters or other non-Latin characters). Clear the field and paste the key again from Google AI Studio.');
                         return;
                       }
                       setKeyInputError(null);

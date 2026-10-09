@@ -73,10 +73,11 @@ describe('API key cleanup', () => {
     expect(normalizeApiKey('AIza\u00a0Sy\u2060X\u00adY')).toBe('AIzaSyXY');
   });
 
-  it('accepts only characters valid in a Google API key', () => {
+  it('accepts any visible ASCII key and rejects other characters', () => {
     expect(hasValidKeyChars('AIzaSyA-b_C9')).toBe(true);
+    expect(hasValidKeyChars('AQ.Ab8RN6Kx-y_z.9')).toBe(true);
     expect(hasValidKeyChars('AIzaКИР')).toBe(false);
-    expect(hasValidKeyChars('AIza"key')).toBe(false);
+    expect(hasValidKeyChars('AIza\u00e9key')).toBe(false);
   });
 
   it('cleans a key already stored with invisible characters', () => {

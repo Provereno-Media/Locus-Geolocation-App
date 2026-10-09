@@ -40,9 +40,12 @@ export function normalizeApiKey(raw: string): string {
   return raw.replace(INVISIBLE, '');
 }
 
-/** Google API keys use letters, digits, '-' and '_'; anything else breaks the request header. */
+/**
+ * Only checks what the browser needs to send the key as a header: visible ASCII.
+ * Key formats differ (e.g. `AIza…`, `AQ.…`), so the exact alphabet is not enforced.
+ */
 export function hasValidKeyChars(key: string): boolean {
-  return /^[A-Za-z0-9_-]+$/.test(key);
+  return /^[\x21-\x7E]+$/.test(key);
 }
 
 export function isKnownModel(id: string): boolean {

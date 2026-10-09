@@ -42,7 +42,9 @@ src/
 
 ## Deployment
 
-`npm run build` produces a static site in `dist/`; any static host works.
+`npm run build` produces a static site in `dist/` with relative asset paths; any static host works, at the domain root or under a sub-path.
+
+**GitHub Pages.** `.github/workflows/deploy-pages.yml` runs typecheck, tests and build on every push to `main` and publishes `dist/`. One-time setup: Settings → Pages → Source: *GitHub Actions*. GitHub Pages cannot send custom HTTP headers, so the CSP below applies only as `<meta>` and `frame-ancestors` is unavailable; the app refuses to render inside a frame instead.
 
 The build injects a Content Security Policy as a `<meta>` tag (`CONTENT_SECURITY_POLICY` in `vite.config.ts`). The host should also send it as an HTTP header, adding `frame-ancestors 'none'`, which browsers ignore in `<meta>`:
 

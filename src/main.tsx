@@ -12,8 +12,16 @@ import 'leaflet/dist/leaflet.css';
 import App from './App.tsx';
 import './index.css';
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+const root = createRoot(document.getElementById('root')!);
+
+// GitHub Pages cannot send `frame-ancestors`, so refuse to render inside a frame
+// to keep the settings dialog (API key) out of clickjacking pages.
+if (window.top !== window.self) {
+  root.render(<p style={{ padding: 16, fontFamily: 'sans-serif' }}>LOCUS cannot be embedded in other pages.</p>);
+} else {
+  root.render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  );
+}

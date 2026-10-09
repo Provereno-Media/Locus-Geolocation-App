@@ -29,7 +29,9 @@ import {
   Settings,
   Key,
   AlertCircle,
-  Copy
+  Copy,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import {
   getGeoProvider,
@@ -76,6 +78,16 @@ L.Marker.prototype.options.icon = DefaultIcon;
 function mimeTypeOf(dataUrl: string): string {
   const match = /^data:([^;,]+)[;,]/.exec(dataUrl);
   return match?.[1] ?? 'image/jpeg';
+}
+
+/** Errors the user can fix by switching to another key or project. */
+function isKeyRelated(err: unknown): boolean {
+  return err instanceof LocusError && (err.code === 'AUTH' || err.code === 'QUOTA' || err.code === 'MODEL_UNAVAILABLE');
+}
+
+/** Last four characters, enough to tell keys apart without exposing them. */
+function keyHint(key: string): string {
+  return key.length > 8 ? `…${key.slice(-4)}` : '';
 }
 
 function errorMessage(err: unknown): string {
@@ -145,6 +157,7 @@ export default function App() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [result, setResult] = useState<GeolocationResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [errorNeedsKey, setErrorNeedsKey] = useState(false);
   const [mapCenter, setMapCenter] = useState<[number, number]>([0, 0]);
   const [mapZoom, setMapZoom] = useState(13);
   const [tempMarker, setTempMarker] = useState<[number, number] | null>(null);
@@ -171,11 +184,13 @@ export default function App() {
   const [apiKeyInput, setApiKeyInput] = useState(config.apiKey);
   const [selectedModel, setSelectedModel] = useState(config.modelName);
   const [rememberKeyInput, setRememberKeyInput] = useState(config.rememberKey);
+  const [showKey, setShowKey] = useState(false);
 
   const openSettings = () => {
     setApiKeyInput(config.apiKey);
     setSelectedModel(config.modelName);
     setRememberKeyInput(config.rememberKey);
+    setShowKey(false);
     setIsSettingsOpen(true);
   };
 
@@ -218,6 +233,7 @@ export default function App() {
       } catch (e) {
         console.error('Chat session creation failed:', e);
         setError(errorMessage(e));
+        setErrorNeedsKey(isKeyRelated(e));
       }
     } else {
       setChatSession(null);
@@ -299,7 +315,10 @@ export default function App() {
         setHistory(prev => [newItem, ...prev].slice(0, MAX_HISTORY));
       }
     } catch (err) {
-      if (currentImageRef.current === requestImage) setError(errorMessage(err));
+      if (currentImageRef.current === requestImage) {
+        setError(errorMessage(err));
+        setErrorNeedsKey(isKeyRelated(err));
+      }
     } finally {
       setIsAnalyzing(false);
     }
@@ -407,7 +426,7 @@ export default function App() {
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-cyan-950/40 border border-cyan-500/30 text-[9px] font-mono font-bold text-cyan-400 uppercase tracking-wider hover:bg-cyan-500/10 transition-all"
               >
                 <Key className="w-3 h-3 text-cyan-400" />
-                <span>KEY SET (THIS BROWSER)</span>
+                <span>KEY {keyHint(config.apiKey) || 'SET'} · CHANGE</span>
               </button>
             )}
           </div>
@@ -985,6 +1004,15 @@ export default function App() {
                     className="mt-6 px-4 py-2 bg-red-950/40 border border-red-500/40 rounded text-xs text-red-400 font-mono max-w-lg"
                   >
                     SYS_ERR: {error}
+                    {errorNeedsKey && (
+                      <button
+                        type="button"
+                        onClick={openSettings}
+                        className="mt-2 flex items-center gap-1.5 text-cyan-400 hover:text-cyan-300 hover:underline"
+                      >
+                        <Key className="w-3 h-3" /> Change API key{config.apiKey && ` (current ${keyHint(config.apiKey)})`}
+                      </button>
+                    )}
                   </motion.div>
                 )}
               </div>
@@ -1184,13 +1212,40 @@ export default function App() {
                     <div className="relative flex items-center">
                       <Key className="absolute left-3 w-4 h-4 text-cyan-600 pointer-events-none" />
                       <input 
-                        type="password"
+                        type={showKey ? 'text' : 'password'}
                         value={apiKeyInput}
                         onChange={e => setApiKeyInput(e.target.value)}
                         placeholder="AIzaSy..."
-                        className="w-full bg-[#111] border border-white/10 focus:border-cyan-500/50 rounded pl-10 pr-4 py-2.5 text-xs font-mono text-white placeholder-gray-700 focus:outline-none transition-all"
+                        autoComplete="off"
+                        spellCheck={false}
+                        className="w-full bg-[#111] border border-white/10 focus:border-cyan-500/50 rounded pl-10 pr-16 py-2.5 text-xs font-mono text-white placeholder-gray-700 focus:outline-none transition-all"
                       />
+                      <div className="absolute right-2 flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setShowKey(v => !v)}
+                          className="p-1 text-gray-500 hover:text-cyan-400"
+                          title={showKey ? 'Hide key' : 'Show key'}
+                        >
+                          {showKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                        {apiKeyInput && (
+                          <button
+                            type="button"
+                            onClick={() => setApiKeyInput('')}
+                            className="p-1 text-gray-500 hover:text-red-400"
+                            title="Clear field to paste another key"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </div>
+                    {config.apiKey && (
+                      <p className="text-[10px] font-mono text-gray-600">
+                        Active key: {keyHint(config.apiKey) || 'set'}. To switch keys, clear the field, paste the new key and save.
+                      </p>
+                    )}
                     <label className="flex items-start gap-2 pt-1 text-[11px] font-mono text-gray-400 cursor-pointer select-none">
                       <input
                         type="checkbox"
@@ -1257,6 +1312,10 @@ export default function App() {
                       if (!saveConfig(savedConfig)) {
                         alert('Could not save settings: browser storage is unavailable.');
                         return;
+                      }
+                      if (savedConfig.apiKey !== config.apiKey) {
+                        setError(null);
+                        setErrorNeedsKey(false);
                       }
                       setConfig(savedConfig);
                       setIsSettingsOpen(false);

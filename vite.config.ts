@@ -37,6 +37,9 @@ const cspMeta = (): Plugin => ({
 // No secrets are injected into the client bundle. In BYOK mode the user's
 // Gemini key is entered at runtime and never exists at build time.
 export default defineConfig({
+  // Relative asset paths: the same build works under /Locus-Geolocation-App/ on
+  // GitHub Pages and at the root of a custom domain.
+  base: './',
   plugins: [react(), tailwindcss(), cspMeta()],
   resolve: {
     alias: {

@@ -385,7 +385,7 @@ export default function App() {
           </h1>
           <a href="https://provereno.media/" target="_blank" rel="noopener noreferrer" className="hover:opacity-80 transition-opacity">
             <img 
-              src="/Provereno Logo.png" 
+              src={`${import.meta.env.BASE_URL}Provereno Logo.png`} 
               alt="Provereno Logo" 
               className="h-6 md:h-7 object-contain rounded-sm" 
             />

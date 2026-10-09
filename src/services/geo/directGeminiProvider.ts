@@ -34,11 +34,29 @@ export class DirectGeminiProvider implements GeoProvider {
       return await this.runAnalysis(apiKey, modelName, input);
     } catch (error) {
       if (error instanceof LocusError && error.code === 'MODEL_UNAVAILABLE' && modelName !== DEFAULT_MODEL) {
-        const result = await this.runAnalysis(apiKey, DEFAULT_MODEL, input);
-        return { ...result, modelFallbackFrom: modelName };
+        try {
+          const result = await this.runAnalysis(apiKey, DEFAULT_MODEL, input);
+          return { ...result, modelFallbackFrom: modelName };
+        } catch (fallbackError) {
+          throw await this.explainQuota(apiKey, DEFAULT_MODEL, fallbackError);
+        }
       }
-      throw error;
+      throw await this.explainQuota(apiKey, modelName, error);
     }
+  }
+
+  /**
+   * Some keys (seen with free-tier keys) get 429 only for requests with Search/Maps
+   * grounding, while plain requests pass. One plain request tells the two cases apart.
+   */
+  private async explainQuota(apiKey: string, model: string, error: unknown): Promise<unknown> {
+    if (!(error instanceof LocusError) || error.code !== 'QUOTA') return error;
+    try {
+      await this.getClient(apiKey).models.generateContent({ model, contents: 'ping' });
+    } catch {
+      return error;
+    }
+    return new LocusError('GROUNDING_QUOTA', error.detail);
   }
 
   createChatSession(image: ImageInput, result: GeolocationResult): ChatSession {

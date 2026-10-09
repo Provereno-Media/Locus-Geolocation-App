@@ -82,7 +82,10 @@ function mimeTypeOf(dataUrl: string): string {
 
 /** Errors the user can fix by switching to another key or project. */
 function isKeyRelated(err: unknown): boolean {
-  return err instanceof LocusError && (err.code === 'AUTH' || err.code === 'QUOTA' || err.code === 'MODEL_UNAVAILABLE');
+  return (
+    err instanceof LocusError &&
+    (err.code === 'AUTH' || err.code === 'QUOTA' || err.code === 'GROUNDING_QUOTA' || err.code === 'MODEL_UNAVAILABLE')
+  );
 }
 
 /** Last four characters, enough to tell keys apart without exposing them. */
@@ -1192,6 +1195,9 @@ export default function App() {
                   </p>
                   <p className="text-amber-500/90">
                     On Google's free tier, submitted images may be used to improve Google products and may be seen by human reviewers. Do not upload sensitive or unpublished material with a free-tier key.
+                  </p>
+                  <p>
+                    LOCUS checks locations with Google Search and Maps grounding. Some free-tier keys are refused grounding even when plain requests work; in that case use a key from a project with billing enabled.
                   </p>
                   <a 
                     href="https://aistudio.google.com/app/apikey" 

@@ -1,5 +1,5 @@
 import { GoogleGenAI, type GenerateContentResponse } from '@google/genai';
-import { DEFAULT_MODEL, getConfig, isKnownModel, type LocusConfig } from '../config';
+import { DEFAULT_MODEL, getConfig, hasValidKeyChars, isKnownModel, type LocusConfig } from '../config';
 import { LocusError, mapGeminiError } from './errors';
 import { extractGrounding } from './grounding';
 import { buildChatSystemInstruction, buildGeolocationPrompt } from './prompt';
@@ -93,6 +93,7 @@ export class DirectGeminiProvider implements GeoProvider {
   private requireConfig(): ProviderConfig {
     const config = this.readConfig();
     if (!config.apiKey) throw new LocusError('NO_KEY');
+    if (!hasValidKeyChars(config.apiKey)) throw new LocusError('BAD_KEY');
     return config;
   }
 

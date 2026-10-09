@@ -43,6 +43,12 @@ describe('DirectGeminiProvider', () => {
     await expect(p.analyzeImage(input)).rejects.toMatchObject({ code: 'NO_KEY' });
   });
 
+  it('rejects a key with invalid characters before sending anything', async () => {
+    const p = new DirectGeminiProvider(() => ({ apiKey: 'AIzaКИР', modelName: 'gemini-2.5-flash' }));
+    await expect(p.analyzeImage(input)).rejects.toMatchObject({ code: 'BAD_KEY' });
+    expect(generateContent).not.toHaveBeenCalled();
+  });
+
   it('creates the client with the key only (no custom headers)', async () => {
     generateContent.mockResolvedValue(answer(good));
     await provider().analyzeImage(input);

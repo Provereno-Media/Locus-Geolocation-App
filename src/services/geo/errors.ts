@@ -1,5 +1,6 @@
 export type LocusErrorCode =
   | 'NO_KEY'
+  | 'BAD_KEY'
   | 'AUTH'
   | 'QUOTA'
   | 'GROUNDING_QUOTA'
@@ -12,6 +13,7 @@ export type LocusErrorCode =
 
 const MESSAGES: Record<LocusErrorCode, string> = {
   NO_KEY: 'Gemini API key is not set. Open Settings to add your key.',
+  BAD_KEY: 'The API key contains invalid characters. Open Settings, clear the key field and paste the key again.',
   AUTH: 'Gemini rejected the API key. Check the key in Settings.',
   QUOTA: 'Gemini rate limit or quota exceeded. Try again later or use another key.',
   GROUNDING_QUOTA:
@@ -65,6 +67,9 @@ export function mapGeminiError(error: unknown): LocusError {
   }
   if (status === 403 || text.includes('permission_denied')) {
     return new LocusError('AUTH', message);
+  }
+  if (error instanceof TypeError && text.includes('iso-8859-1')) {
+    return new LocusError('BAD_KEY', message);
   }
   if (error instanceof TypeError && text.includes('fetch')) {
     return new LocusError('NETWORK', message);

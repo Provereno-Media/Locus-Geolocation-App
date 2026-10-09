@@ -46,6 +46,8 @@ import {
   DEFAULT_CONFIG,
   DEFAULT_MODEL,
   getConfig,
+  hasValidKeyChars,
+  normalizeApiKey,
   MODEL_OPTIONS,
   saveConfig,
   type LocusConfig,
@@ -85,7 +87,7 @@ function mimeTypeOf(dataUrl: string): string {
 function isKeyRelated(err: unknown): boolean {
   return (
     err instanceof LocusError &&
-    (err.code === 'AUTH' || err.code === 'QUOTA' || err.code === 'GROUNDING_QUOTA' || err.code === 'MODEL_UNAVAILABLE')
+    (err.code === 'AUTH' || err.code === 'BAD_KEY' || err.code === 'QUOTA' || err.code === 'GROUNDING_QUOTA' || err.code === 'MODEL_UNAVAILABLE')
   );
 }
 
@@ -190,6 +192,7 @@ export default function App() {
   const [selectedModel, setSelectedModel] = useState(config.modelName);
   const [rememberKeyInput, setRememberKeyInput] = useState(config.rememberKey);
   const [showKey, setShowKey] = useState(false);
+  const [keyInputError, setKeyInputError] = useState<string | null>(null);
 
   const switchToDefaultModel = () => {
     const next = { ...config, modelName: DEFAULT_MODEL };
@@ -206,6 +209,7 @@ export default function App() {
     setSelectedModel(config.modelName);
     setRememberKeyInput(config.rememberKey);
     setShowKey(false);
+    setKeyInputError(null);
     setIsSettingsOpen(true);
   };
 
@@ -1243,7 +1247,7 @@ export default function App() {
                       <input 
                         type={showKey ? 'text' : 'password'}
                         value={apiKeyInput}
-                        onChange={e => setApiKeyInput(e.target.value)}
+                        onChange={e => { setApiKeyInput(e.target.value); setKeyInputError(null); }}
                         placeholder="AIzaSy..."
                         autoComplete="off"
                         spellCheck={false}
@@ -1261,7 +1265,7 @@ export default function App() {
                         {apiKeyInput && (
                           <button
                             type="button"
-                            onClick={() => setApiKeyInput('')}
+                            onClick={() => { setApiKeyInput(''); setKeyInputError(null); }}
                             className="p-1 text-gray-500 hover:text-red-400"
                             title="Clear field to paste another key"
                           >
@@ -1270,6 +1274,9 @@ export default function App() {
                         )}
                       </div>
                     </div>
+                    {keyInputError && (
+                      <p role="alert" className="text-[11px] font-mono text-red-400">{keyInputError}</p>
+                    )}
                     {config.apiKey && (
                       <p className="text-[10px] font-mono text-gray-600">
                         Active key: {keyHint(config.apiKey) || 'set'}. To switch keys, clear the field, paste the new key and save.
@@ -1336,8 +1343,14 @@ export default function App() {
                   <button 
                     type="button"
                     onClick={() => {
-                      const trimmedKey = apiKeyInput.trim();
-                      const savedConfig = { apiKey: trimmedKey, modelName: selectedModel, rememberKey: rememberKeyInput };
+                      const cleanKey = normalizeApiKey(apiKeyInput);
+                      if (cleanKey && !hasValidKeyChars(cleanKey)) {
+                        setKeyInputError('The key contains invalid characters (for example Cyrillic letters or symbols). Clear the field and paste the key again from Google AI Studio.');
+                        return;
+                      }
+                      setKeyInputError(null);
+                      setApiKeyInput(cleanKey);
+                      const savedConfig = { apiKey: cleanKey, modelName: selectedModel, rememberKey: rememberKeyInput };
                       if (!saveConfig(savedConfig)) {
                         alert('Could not save settings: browser storage is unavailable.');
                         return;

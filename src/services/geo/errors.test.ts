@@ -11,6 +11,7 @@ describe('mapGeminiError', () => {
     [apiError(400, 'User location is not supported for the API use.'), 'REGION'],
     [apiError(403, 'PERMISSION_DENIED'), 'AUTH'],
     [new TypeError('Failed to fetch'), 'NETWORK'],
+    [new TypeError("Failed to execute 'fetch' on 'Window': String contains non ISO-8859-1 code point."), 'BAD_KEY'],
     [new Error('something odd'), 'UNKNOWN'],
   ])('maps %s to %s', (error, code) => {
     expect(mapGeminiError(error).code).toBe(code);

@@ -95,7 +95,7 @@ describe('DirectGeminiProvider', () => {
       .mockRejectedValueOnce(Object.assign(new Error('model not found'), { status: 404 }))
       .mockResolvedValueOnce(answer(good));
     const r = await provider('gemini-3.1-pro-preview').analyzeImage(input);
-    expect(generateContent.mock.calls[1][0].model).toBe('gemini-3.8-flash');
+    expect(generateContent.mock.calls[1][0].model).toBe('gemini-2.5-flash');
     expect(r.modelFallbackFrom).toBe('gemini-3.1-pro-preview');
   });
 

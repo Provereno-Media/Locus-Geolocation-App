@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearLocalData, DEFAULT_MODEL, getConfig, saveConfig } from './config';
+import { clearLocalData, DEFAULT_MODEL, getConfig, hasValidKeyChars, normalizeApiKey, saveConfig } from './config';
 
 class MemoryStorage {
   private data = new Map<string, string>();
@@ -64,5 +64,23 @@ describe('config storage', () => {
     clearLocalData();
     expect(local.getItem('locus_config')).toBeNull();
     expect(session.getItem('locus_session_key')).toBeNull();
+  });
+});
+
+describe('API key cleanup', () => {
+  it('removes whitespace and invisible characters picked up when copying', () => {
+    expect(normalizeApiKey(' AIza\u200bSy-key_1\uFEFF\n')).toBe('AIzaSy-key_1');
+    expect(normalizeApiKey('AIza\u00a0Sy\u2060X\u00adY')).toBe('AIzaSyXY');
+  });
+
+  it('accepts only characters valid in a Google API key', () => {
+    expect(hasValidKeyChars('AIzaSyA-b_C9')).toBe(true);
+    expect(hasValidKeyChars('AIzaКИР')).toBe(false);
+    expect(hasValidKeyChars('AIza"key')).toBe(false);
+  });
+
+  it('cleans a key already stored with invisible characters', () => {
+    local.setItem('locus_config', JSON.stringify({ apiKey: 'AIza\u200bSyOld', modelName: DEFAULT_MODEL }));
+    expect(getConfig().apiKey).toBe('AIzaSyOld');
   });
 });

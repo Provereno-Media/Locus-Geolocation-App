@@ -31,6 +31,20 @@ const CONFIG_KEY = 'locus_config';
 const SESSION_KEY = 'locus_session_key';
 export const HISTORY_KEY = 'osint_history';
 
+// Whitespace plus invisible characters that come along when a key is copied from
+// chats or documents (zero-width spaces and joiners, word joiner, BOM, soft hyphen).
+const INVISIBLE = /[\s\u200B-\u200D\u2060\uFEFF\u00AD]/g;
+
+/** Removes whitespace and invisible characters picked up when copying a key. */
+export function normalizeApiKey(raw: string): string {
+  return raw.replace(INVISIBLE, '');
+}
+
+/** Google API keys use letters, digits, '-' and '_'; anything else breaks the request header. */
+export function hasValidKeyChars(key: string): boolean {
+  return /^[A-Za-z0-9_-]+$/.test(key);
+}
+
 export function isKnownModel(id: string): boolean {
   return MODEL_OPTIONS.some((m) => m.id === id);
 }
@@ -50,7 +64,7 @@ export function getConfig(): LocusConfig {
       const parsed = JSON.parse(raw) as Partial<LocusConfig>;
       const rememberKey = parsed.rememberKey !== false;
       return {
-        apiKey: rememberKey ? (typeof parsed.apiKey === 'string' ? parsed.apiKey : '') : readSessionKey(),
+        apiKey: normalizeApiKey(rememberKey ? (typeof parsed.apiKey === 'string' ? parsed.apiKey : '') : readSessionKey()),
         modelName:
           typeof parsed.modelName === 'string' && isKnownModel(parsed.modelName)
             ? parsed.modelName
@@ -61,7 +75,7 @@ export function getConfig(): LocusConfig {
   } catch (e) {
     console.error('Could not read settings from localStorage', e);
   }
-  return { ...DEFAULT_CONFIG, apiKey: readSessionKey() };
+  return { ...DEFAULT_CONFIG, apiKey: normalizeApiKey(readSessionKey()) };
 }
 
 export function saveConfig(config: LocusConfig): boolean {

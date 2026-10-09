@@ -44,7 +44,6 @@ import {
 import {
   clearLocalData,
   DEFAULT_CONFIG,
-  DEFAULT_MODEL,
   getConfig,
   hasValidKeyChars,
   normalizeApiKey,
@@ -164,7 +163,6 @@ export default function App() {
   const [result, setResult] = useState<GeolocationResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [errorNeedsKey, setErrorNeedsKey] = useState(false);
-  const [errorIsGrounding, setErrorIsGrounding] = useState(false);
   const [mapCenter, setMapCenter] = useState<[number, number]>([0, 0]);
   const [mapZoom, setMapZoom] = useState(13);
   const [tempMarker, setTempMarker] = useState<[number, number] | null>(null);
@@ -193,16 +191,6 @@ export default function App() {
   const [rememberKeyInput, setRememberKeyInput] = useState(config.rememberKey);
   const [showKey, setShowKey] = useState(false);
   const [keyInputError, setKeyInputError] = useState<string | null>(null);
-
-  const switchToDefaultModel = () => {
-    const next = { ...config, modelName: DEFAULT_MODEL };
-    if (!saveConfig(next)) return;
-    setConfig(next);
-    setSelectedModel(DEFAULT_MODEL);
-    setError(null);
-    setErrorNeedsKey(false);
-    setErrorIsGrounding(false);
-  };
 
   const openSettings = () => {
     setApiKeyInput(config.apiKey);
@@ -253,7 +241,6 @@ export default function App() {
         console.error('Chat session creation failed:', e);
         setError(errorMessage(e));
         setErrorNeedsKey(isKeyRelated(e));
-        setErrorIsGrounding(false);
       }
     } else {
       setChatSession(null);
@@ -338,7 +325,6 @@ export default function App() {
       if (currentImageRef.current === requestImage) {
         setError(errorMessage(err));
         setErrorNeedsKey(isKeyRelated(err));
-        setErrorIsGrounding(err instanceof LocusError && err.code === 'GROUNDING_QUOTA');
       }
     } finally {
       setIsAnalyzing(false);
@@ -1025,15 +1011,6 @@ export default function App() {
                     className="mt-6 px-4 py-2 bg-red-950/40 border border-red-500/40 rounded text-xs text-red-400 font-mono max-w-lg"
                   >
                     SYS_ERR: {error}
-                    {errorIsGrounding && config.modelName !== DEFAULT_MODEL && (
-                      <button
-                        type="button"
-                        onClick={switchToDefaultModel}
-                        className="mt-2 flex items-center gap-1.5 text-cyan-400 hover:text-cyan-300 hover:underline"
-                      >
-                        <Settings className="w-3 h-3" /> Switch to {MODEL_OPTIONS.find((m) => m.id === DEFAULT_MODEL)?.label.split(' (')[0]}
-                      </button>
-                    )}
                     {errorNeedsKey && (
                       <button
                         type="button"
@@ -1223,8 +1200,8 @@ export default function App() {
                   <p className="text-amber-500/90">
                     On Google's free tier, submitted images may be used to improve Google products and may be seen by human reviewers. Do not upload sensitive or unpublished material with a free-tier key.
                   </p>
-                  <p>
-                    LOCUS checks locations with Google Search and Maps grounding. With a free-tier key grounding works only on Gemini 2.5 models; Gemini 3.x models need a key from a project with billing enabled.
+                  <p className="text-cyan-300/90">
+                    LOCUS requires a key from a project with billing enabled; up to 5,000 search queries per month are free. Google Search and Maps grounding, which LOCUS uses to check locations, is not available on the free tier.
                   </p>
                   <a 
                     href="https://aistudio.google.com/app/apikey" 

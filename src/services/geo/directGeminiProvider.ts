@@ -33,7 +33,11 @@ export class DirectGeminiProvider implements GeoProvider {
     try {
       return await this.runAnalysis(apiKey, modelName, input);
     } catch (error) {
-      if (error instanceof LocusError && error.code === 'MODEL_UNAVAILABLE' && modelName !== DEFAULT_MODEL) {
+      if (
+        error instanceof LocusError &&
+        (error.code === 'MODEL_UNAVAILABLE' || error.code === 'MODEL_RETIRED') &&
+        modelName !== DEFAULT_MODEL
+      ) {
         try {
           const result = await this.runAnalysis(apiKey, DEFAULT_MODEL, input);
           return { ...result, modelFallbackFrom: modelName };

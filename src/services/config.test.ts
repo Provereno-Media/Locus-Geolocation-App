@@ -32,6 +32,12 @@ describe('config storage', () => {
     expect(getConfig()).toEqual({ apiKey: '', modelName: DEFAULT_MODEL, rememberKey: true });
   });
 
+  it('replaces a saved model that is no longer offered with the default', () => {
+    local.setItem('locus_config', JSON.stringify({ apiKey: 'k', modelName: 'gemini-2.5-flash', rememberKey: true }));
+    expect(getConfig().modelName).toBe(DEFAULT_MODEL);
+    expect(DEFAULT_MODEL).toBe('gemini-3.6-flash');
+  });
+
   it('reads configs saved before the rememberKey option as remembered', () => {
     local.setItem('locus_config', JSON.stringify({ apiKey: 'old-key', modelName: DEFAULT_MODEL }));
     expect(getConfig()).toMatchObject({ apiKey: 'old-key', rememberKey: true });

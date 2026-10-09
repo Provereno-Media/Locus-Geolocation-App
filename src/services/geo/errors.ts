@@ -6,6 +6,7 @@ export type LocusErrorCode =
   | 'GROUNDING_QUOTA'
   | 'REGION'
   | 'MODEL_UNAVAILABLE'
+  | 'MODEL_RETIRED'
   | 'BLOCKED'
   | 'PARSE'
   | 'NETWORK'
@@ -17,9 +18,10 @@ const MESSAGES: Record<LocusErrorCode, string> = {
   AUTH: 'Gemini rejected the API key. Check the key in Settings.',
   QUOTA: 'Gemini rate limit or quota exceeded. Try again later or use another key.',
   GROUNDING_QUOTA:
-    'Your key works, but Google refused Search/Maps grounding for it (quota exceeded). LOCUS needs grounding to check locations: switch to Gemini 2.5 Flash, which grounds with free-tier keys, or use a key from a project with billing enabled.',
+    'Your key works, but Google refused Search/Maps grounding for it (quota exceeded). LOCUS needs grounding to check locations and requires a key from a Google AI Studio project with billing enabled; up to 5,000 search queries per month are free.',
   REGION: 'Gemini API is not available in your region.',
   MODEL_UNAVAILABLE: 'The selected model is not available for this key. Choose another model in Settings.',
+  MODEL_RETIRED: 'Google no longer offers this model to new users. Choose another model in Settings.',
   BLOCKED: 'Gemini returned no answer for this image (blocked or empty response).',
   PARSE: 'The model answered, but the result could not be read. Try again or switch the grounding mode.',
   NETWORK: 'Could not reach Gemini API. Check your connection.',
@@ -61,6 +63,9 @@ export function mapGeminiError(error: unknown): LocusError {
   }
   if (status === 429 || text.includes('resource_exhausted') || text.includes('quota')) {
     return new LocusError('QUOTA', message);
+  }
+  if (text.includes('no longer available')) {
+    return new LocusError('MODEL_RETIRED', message);
   }
   if (status === 404 || (text.includes('model') && text.includes('not found'))) {
     return new LocusError('MODEL_UNAVAILABLE', message);

@@ -101,7 +101,7 @@ describe('DirectGeminiProvider', () => {
       .mockRejectedValueOnce(Object.assign(new Error('model not found'), { status: 404 }))
       .mockResolvedValueOnce(answer(good));
     const r = await provider('gemini-3.1-pro-preview').analyzeImage(input);
-    expect(generateContent.mock.calls[1][0].model).toBe('gemini-2.5-flash');
+    expect(generateContent.mock.calls[1][0].model).toBe('gemini-3.6-flash');
     expect(r.modelFallbackFrom).toBe('gemini-3.1-pro-preview');
   });
 
@@ -125,6 +125,24 @@ describe('DirectGeminiProvider', () => {
     generateContent.mockRejectedValue(Object.assign(new Error('API key not valid'), { status: 400 }));
     await expect(provider().analyzeImage(input)).rejects.toMatchObject({ code: 'AUTH' });
     expect(generateContent).toHaveBeenCalledTimes(1);
+  });
+
+  it('falls back to the default model when the chosen one is retired for new users', async () => {
+    generateContent
+      .mockRejectedValueOnce(
+        Object.assign(new Error('This model models/gemini-3.5-flash is no longer available to new users.'), { status: 404 }),
+      )
+      .mockResolvedValueOnce(answer(good));
+    const r = await provider('gemini-3.5-flash').analyzeImage(input);
+    expect(generateContent.mock.calls[1][0].model).toBe('gemini-3.6-flash');
+    expect(r.modelFallbackFrom).toBe('gemini-3.5-flash');
+  });
+
+  it('reports a retired default model clearly', async () => {
+    generateContent.mockRejectedValue(
+      Object.assign(new Error('This model models/gemini-3.6-flash is no longer available to new users.'), { status: 404 }),
+    );
+    await expect(provider('gemini-3.6-flash').analyzeImage(input)).rejects.toMatchObject({ code: 'MODEL_RETIRED' });
   });
 
   it('chats with the configured model when a stored result names an unknown model', async () => {

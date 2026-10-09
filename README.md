@@ -7,9 +7,11 @@ LOCUS sends an image to Google Gemini with Google Maps or Google Search groundin
 ## How it works
 
 - **Free tier (BYOK).** Runs entirely in the browser. Each user enters their own Gemini API key in Settings; the browser calls the Gemini API directly. Provereno servers never receive images or keys. See [ADR-001](docs/adr/ADR-001-access-tiers.md).
+
+  **LOCUS requires a key from a project with billing enabled; up to 5,000 search queries per month are free.** LOCUS checks locations with Google Search and Maps grounding, which Gemini 3.x models do not offer on the free tier (Google's [pricing page](https://ai.google.dev/gemini-api/docs/pricing), checked 2026-10-09). Google may change these terms. The default model is `gemini-3.6-flash`.
 - **Pro tier** (planned) will use a Provereno-managed key through a server proxy. Both tiers share the `GeoProvider` interface in `src/services/geo`.
 
-Privacy note: on Google's free tier, submitted content may be used to improve Google products and may be reviewed by humans. Use a billing-enabled key for sensitive material.
+Privacy note: on Google's free tier, submitted content may be used to improve Google products and may be reviewed by humans; with billing enabled, Google's paid-service terms apply.
 
 ## Development
 

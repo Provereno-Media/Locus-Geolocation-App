@@ -6,17 +6,18 @@ export interface ModelOption {
 
 /**
  * Models offered in Settings. All support Grounding with Google Maps and Google Search.
- * Gemini 3.x grounding is not available on the free tier (pricing page and a live test,
- * 2026-10-09), so the default is 2.5 Flash, which grounds with free-tier keys.
+ * As of 2026-10-09: Gemini 3.x grounding needs a key from a project with billing enabled
+ * (not available on the free tier), and gemini-2.5-flash is no longer available to new
+ * users, so it is not offered. Saved choices outside this list fall back to DEFAULT_MODEL.
  */
 export const MODEL_OPTIONS: readonly ModelOption[] = [
-  { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (recommended, works with free-tier keys)' },
-  { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash (grounding needs a billing-enabled key)' },
-  { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash (grounding needs a billing-enabled key)' },
-  { id: 'gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro (preview, billing-enabled key, may be withdrawn)', preview: true },
+  { id: 'gemini-3.6-flash', label: 'Gemini 3.6 Flash (recommended)' },
+  { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash' },
+  { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash' },
+  { id: 'gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro (preview, slower, may be withdrawn)', preview: true },
 ];
 
-export const DEFAULT_MODEL = 'gemini-2.5-flash';
+export const DEFAULT_MODEL = 'gemini-3.6-flash';
 
 export interface LocusConfig {
   apiKey: string;

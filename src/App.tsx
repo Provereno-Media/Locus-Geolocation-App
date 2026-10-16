@@ -280,16 +280,23 @@ export default function App() {
         setImage(e.target?.result as string);
         setResult(null);
         setError(null);
+        setErrorNeedsKey(false);
+        setTempMarker(null);
+        setIsChatOpen(false);
         setActiveTab('analysis');
       };
       reader.readAsDataURL(selectedFile);
     }
   }, []);
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+  // Clicks open the picker only from the empty state or the New Photo buttons; drops work over the whole view.
+  const { getRootProps, getInputProps, isDragActive, open: openFilePicker } = useDropzone({
     onDrop,
     accept: { 'image/*': ['.jpeg', '.jpg', '.png', '.webp'] },
-    multiple: false
+    multiple: false,
+    noClick: true,
+    noKeyboard: true,
+    disabled: !config.apiKey || isAnalyzing,
   } as any);
 
   const handleAnalyze = async () => {
@@ -349,7 +356,9 @@ export default function App() {
     setFile(null);
     setResult(null);
     setError(null);
+    setErrorNeedsKey(false);
     setTempMarker(null);
+    setIsChatOpen(false);
   };
 
   const getDistanceFromLatLonInKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -467,6 +476,18 @@ export default function App() {
               Configure API Key
             </button>
           ) : (
+            <>
+            {image && (
+              <button
+                onClick={openFilePicker}
+                disabled={isAnalyzing}
+                title="Load another image for a new analysis"
+                className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all flex items-center gap-1.5 border ${isAnalyzing ? 'bg-white/5 text-gray-600 border-white/10 cursor-not-allowed' : 'border-cyan-500/40 text-cyan-400 hover:bg-cyan-500/10'}`}
+              >
+                <Upload className="w-3.5 h-3.5" />
+                New Photo
+              </button>
+            )}
             <button 
               disabled={!image || isAnalyzing || !!result}
               onClick={handleAnalyze}
@@ -479,6 +500,7 @@ export default function App() {
             >
               {isAnalyzing ? 'Analyzing Frame...' : 'Identify Frame'}
             </button>
+            </>
           )}
         </div>
 
@@ -922,7 +944,13 @@ export default function App() {
           </div>
 
           {/* Main Display Area */}
-          <div className="flex-1 relative flex items-center justify-center p-8 overflow-auto custom-scrollbar">
+          <div {...getRootProps({ className: 'flex-1 relative flex items-center justify-center p-8 overflow-auto custom-scrollbar' })}>
+            <input {...getInputProps()} />
+            {image && isDragActive && (
+              <div className="absolute inset-4 z-30 border-2 border-dashed border-cyan-500 bg-cyan-500/10 rounded-lg flex items-center justify-center pointer-events-none">
+                <p className="text-base font-semibold tracking-tight uppercase text-cyan-400">Drop to replace the current frame</p>
+              </div>
+            )}
             {!image ? (
               !config.apiKey ? (
                 /* LOCKED Dropzone Empty State */
@@ -948,14 +976,21 @@ export default function App() {
               ) : (
                 /* Active Dropzone empty state */
                 <div 
-                  {...getRootProps()} 
+                  role="button"
+                  tabIndex={0}
+                  onClick={openFilePicker}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      openFilePicker?.();
+                    }
+                  }}
                   className={`
                     w-full max-w-2xl h-[400px] border-2 border-dashed rounded-lg transition-all 
                     flex flex-col items-center justify-center text-center gap-4 cursor-pointer
                     ${isDragActive ? 'border-cyan-500 bg-cyan-500/5 scale-105' : 'border-white/5 hover:border-white/20 bg-white/2'}
                   `}
                 >
-                  <input {...getInputProps()} />
                   <div className="w-16 h-16 rounded-full border border-white/10 flex items-center justify-center text-gray-700 animate-pulse">
                     <Upload className="w-6 h-6" />
                   </div>
@@ -998,11 +1033,22 @@ export default function App() {
 
                   <button 
                     onClick={reset}
+                    title="Clear image"
+                    aria-label="Clear image"
                     className="absolute -top-6 -right-6 bg-white/10 hover:bg-red-500/20 p-2 rounded-full text-white/50 hover:text-white transition-all backdrop-blur-md"
                   >
                     <X className="w-4 h-4" />
                   </button>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={openFilePicker}
+                  disabled={isAnalyzing}
+                  className="mt-8 flex items-center gap-2 px-4 py-2 rounded border border-white/10 bg-white/5 hover:bg-white/10 hover:border-cyan-500/40 text-[10px] font-mono font-bold uppercase tracking-widest text-gray-400 hover:text-cyan-400 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <Upload className="w-3.5 h-3.5" /> Upload new photo
+                </button>
 
                 {error && (
                   <motion.div 

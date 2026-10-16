@@ -97,7 +97,7 @@ function keyHint(key: string): string {
 
 function errorMessage(err: unknown): string {
   if (err instanceof LocusError) {
-    const showDetail = (err.code === 'UNKNOWN' || err.code === 'PARSE') && err.detail;
+    const showDetail = (err.code === 'UNKNOWN' || err.code === 'PARSE' || err.code === 'NETWORK') && err.detail;
     return showDetail ? `${err.message} (${err.detail!.slice(0, 300)})` : err.message;
   }
   return err instanceof Error ? err.message : 'Analysis failed. Please try again.';

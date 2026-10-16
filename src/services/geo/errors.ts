@@ -24,7 +24,7 @@ const MESSAGES: Record<LocusErrorCode, string> = {
   MODEL_RETIRED: 'Google no longer offers this model to new users. Choose another model in Settings.',
   BLOCKED: 'Gemini returned no answer for this image (blocked or empty response).',
   PARSE: 'The model answered, but the result could not be read. Try again or switch the grounding mode.',
-  NETWORK: 'Could not reach Gemini API. Check your connection.',
+  NETWORK: 'The connection to Gemini API was lost. A proxy, VPN or firewall may be closing long requests.',
   UNKNOWN: 'Gemini API request failed.',
 };
 

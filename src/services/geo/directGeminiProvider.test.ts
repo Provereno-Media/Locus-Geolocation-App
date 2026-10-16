@@ -1,12 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const generateContent = vi.fn();
+// Analysis requests are streamed; by default a stream yields the mocked answer as one chunk.
+const generateContentStream = vi.fn(async (params: any) => {
+  const response = await generateContent(params);
+  return (async function* () {
+    yield response;
+  })();
+});
 const chatsCreate = vi.fn();
 const ctorArgs: unknown[] = [];
 
 vi.mock('@google/genai', () => ({
   GoogleGenAI: class {
-    models = { generateContent };
+    models = { generateContent, generateContentStream };
     chats = { create: chatsCreate };
     constructor(opts: unknown) {
       ctorArgs.push(opts);
@@ -14,7 +21,7 @@ vi.mock('@google/genai', () => ({
   },
 }));
 
-const { DirectGeminiProvider } = await import('./directGeminiProvider');
+const { DirectGeminiProvider, collectAnswer } = await import('./directGeminiProvider');
 const { LocusError } = await import('./errors');
 
 const answer = (text: string, metadata?: unknown) => ({
@@ -33,6 +40,7 @@ const provider = (modelName = 'gemini-3.8-flash') =>
 
 beforeEach(() => {
   generateContent.mockReset();
+  generateContentStream.mockClear();
   chatsCreate.mockReset();
   ctorArgs.length = 0;
 });
@@ -143,6 +151,44 @@ describe('DirectGeminiProvider', () => {
       Object.assign(new Error('This model models/gemini-3.6-flash is no longer available to new users.'), { status: 404 }),
     );
     await expect(provider('gemini-3.6-flash').analyzeImage(input)).rejects.toMatchObject({ code: 'MODEL_RETIRED' });
+  });
+
+  it('streams the analysis and asks for thought summaries to keep the connection busy', async () => {
+    generateContent.mockResolvedValue(answer(good));
+    await provider().analyzeImage(input);
+    expect(generateContentStream).toHaveBeenCalledTimes(1);
+    expect(generateContentStream.mock.calls[0][0].config.thinkingConfig).toEqual({ includeThoughts: true });
+  });
+
+  it('joins streamed chunks, skipping thought summaries', () => {
+    const r = collectAnswer([
+      { candidates: [{ content: { parts: [{ text: 'thinking about signs', thought: true }] } }] },
+      { candidates: [{ content: { parts: [{ text: '{"locationName":' }] } }] },
+      {
+        candidates: [
+          {
+            content: { parts: [{ text: '"Tallinn"}' }] },
+            finishReason: 'STOP',
+            groundingMetadata: { webSearchQueries: ['q'] },
+          },
+        ],
+      },
+    ] as never);
+    expect(r.text).toBe('{"locationName":"Tallinn"}');
+    expect(r.finishReason).toBe('STOP');
+    expect(r.groundingMetadata).toEqual({ webSearchQueries: ['q'] });
+  });
+
+  it('reports how long a dropped connection lasted', async () => {
+    generateContentStream.mockImplementationOnce(async () =>
+      (async function* () {
+        yield { candidates: [{ content: { parts: [{ text: '...', thought: true }] } }] };
+        throw new TypeError('Failed to fetch');
+      })(),
+    );
+    const error = await provider().analyzeImage(input).catch((e) => e);
+    expect(error).toMatchObject({ code: 'NETWORK' });
+    expect(error.detail).toMatch(/^connection closed after \d+ s; the request may still have been processed and billed$/);
   });
 
   it('chats with the configured model when a stored result names an unknown model', async () => {

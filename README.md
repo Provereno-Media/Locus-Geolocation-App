@@ -40,7 +40,24 @@ src/
     schema.ts                     zod validation of model output
     grounding.ts                  sources and queries from grounding metadata
     errors.ts                     error mapping
+scripts/eval/                     accuracy evaluation against a set of images
 ```
+
+## Evaluation
+
+`npm run eval` runs the same analysis code as the app over a set of images with known locations and reports accuracy. The image set lives in a separate private repository (`Provereno-Media/locus-eval`); images are never committed here.
+
+```bash
+export LOCUS_EVAL_API_KEY=...       # key from a project with billing enabled
+npm run eval -- --data ../locus-eval --dry-run
+npm run eval -- --data ../locus-eval --model gemini-3.6-flash --tool maps --label baseline
+```
+
+Options: `--repeat <n>`, `--only e001,e004`, `--manifest <file>`; `npm run eval -- --help` lists them. Every request is billed to the key's project and uses grounding quota; `--dry-run` shows the number of requests first. The run stops at errors that would repeat (invalid key, quota, unavailable model).
+
+The report gives the share of answers within 1 / 25 / 200 / 750 / 2500 km and within each image's own radius, the share of correct refusals on images with no answer, calibration of the model's confidence and the number of grounding queries. Errors count as misses. Answers whose grounding sources include provereno.media or the image's published pages are flagged as possible leaks and left out of the accuracy figures. Results are saved to `<data>/runs/`, as they may contain text read from the images.
+
+Node's `fetch` ignores `HTTPS_PROXY`; behind a proxy, set `NODE_USE_ENV_PROXY=1` (Node 22.21+ or 24.5+).
 
 ## Deployment
 

@@ -17,7 +17,7 @@ Privacy note: on Google's free tier, submitted content may be used to improve Go
 
 Export: a result can be copied or saved as a Markdown report, or saved as KML (Google Earth) or GeoJSON (QGIS, uMap). Files are made in the browser; the image itself is not included, only its SHA-256 hash, and file names carry only the date and the start of that hash. Links open the point in Google Maps, Google Earth, OpenStreetMap, Mapillary and Copernicus Browser; opening one sends the coordinates to that service.
 
-Local history: by default the browser keeps the last 20 analyses, including the images, in IndexedDB on the user's device. Saving can be turned off in the History tab; Settings → Clear Local Data deletes the history together with the key and settings.
+Local history: by default the browser keeps the last 20 analyses, including the images, in IndexedDB on the user's device. Saving can be turned off in the History tab; Settings → Clear Local Data deletes the history together with the key and settings. The History tab can export the history to a JSON file and import it back, for backup or moving to another browser; the file holds the images and analysis text without encryption. Import accepts only inline images and web links, and keeps at most the 20 newest analyses.
 
 ## Development
 

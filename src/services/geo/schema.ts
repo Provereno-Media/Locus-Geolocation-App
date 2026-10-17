@@ -125,7 +125,8 @@ export function parseModelGeolocation(text: string): ParseOutcome {
 }
 
 const storedSourceSchema = z.object({
-  uri: z.string(),
+  // Stored and imported results are rendered as links, so only web addresses are kept.
+  uri: z.string().regex(/^https?:\/\//i),
   title: z.string(),
   type: z.enum(['web', 'maps']),
 });
@@ -150,7 +151,12 @@ export function normalizeStoredResult(raw: unknown): GeolocationResult | null {
   if (!base.success) return null;
   const r = raw as Record<string, unknown>;
 
-  const sources = z.array(storedSourceSchema).catch([]).parse(r.sources ?? []);
+  const sources = Array.isArray(r.sources)
+    ? r.sources.flatMap((source) => {
+        const parsed = storedSourceSchema.safeParse(source);
+        return parsed.success ? [parsed.data] : [];
+      })
+    : [];
   const groundingQueries = stringList.catch([]).parse(r.groundingQueries);
   const modelReportedQueries = stringList.catch([]).parse(r.modelReportedQueries ?? r.searchQueriesExecuted);
 

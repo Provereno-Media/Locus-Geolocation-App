@@ -4,10 +4,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { HISTORY_KEY } from '../services/config';
 import { normalizeStoredResult } from '../services/geo';
 import {
+  buildHistoryExport,
   isHistoryEnabled,
   loadHistory,
   MAX_HISTORY,
   mergeHistory,
+  parseHistoryImport,
   saveHistory,
   setHistoryEnabled,
   type HistoryItem,
@@ -99,5 +101,48 @@ describe('history store', () => {
     expect(isHistoryEnabled()).toBe(true);
     setHistoryEnabled(false);
     expect(isHistoryEnabled()).toBe(false);
+  });
+});
+
+describe('history export and import', () => {
+  it('round-trips through the export file', () => {
+    const items = [item('b', 2), item('a', 1)];
+    const file = buildHistoryExport(items, new Date('2026-10-17T10:00:00Z'));
+    expect(JSON.parse(file)).toMatchObject({ format: 'locus-history', version: 1, exportedAt: '2026-10-17T10:00:00.000Z' });
+    expect(parseHistoryImport(file)).toEqual({ items, skipped: 0 });
+  });
+
+  it('accepts a bare array of records, such as old localStorage history', () => {
+    const imported = parseHistoryImport(JSON.stringify([{ id: 'a', image: 'data:image/png;base64,AAAA', timestamp: 1, result: legacyResult }]));
+    expect(imported.items.map((i) => i.id)).toEqual(['a']);
+  });
+
+  it('skips records with images that are not inline data or with missing fields', () => {
+    const records = [
+      item('ok', 1),
+      { ...item('remote', 2), image: 'https://example.org/pixel.png' },
+      { ...item('script', 3), image: 'javascript:alert(1)' },
+      { ...item('svg', 4), image: 'data:image/svg+xml;utf8,<svg onload="x"/>' },
+      { id: 'broken' },
+    ];
+    expect(parseHistoryImport(JSON.stringify(records))).toMatchObject({ skipped: 4 });
+  });
+
+  it('keeps only web links among sources', () => {
+    const result = {
+      ...legacyResult,
+      sources: [
+        { uri: 'javascript:alert(1)', title: 'x', type: 'web' },
+        { uri: 'https://example.org/a', title: 'Example', type: 'web' },
+      ],
+    };
+    const [imported] = parseHistoryImport(JSON.stringify([{ id: 'a', image: 'data:image/png;base64,AAAA', timestamp: 1, result }])).items;
+    expect(imported.result.sources).toEqual([{ uri: 'https://example.org/a', title: 'Example', type: 'web' }]);
+  });
+
+  it('rejects files that are not history exports', () => {
+    expect(() => parseHistoryImport('{not json')).toThrow('not valid JSON');
+    expect(() => parseHistoryImport('{"type":"FeatureCollection"}')).toThrow('not a LOCUS history export');
+    expect(() => parseHistoryImport('{"format":"locus-history","version":2,"items":[]}')).toThrow('Unsupported');
   });
 });

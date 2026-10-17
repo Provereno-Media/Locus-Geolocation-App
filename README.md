@@ -15,6 +15,8 @@ LOCUS sends an image to Google Gemini with Google Maps or Google Search groundin
 
 Privacy note: on Google's free tier, submitted content may be used to improve Google products and may be reviewed by humans; with billing enabled, Google's paid-service terms apply.
 
+Export: a result can be copied or saved as a Markdown report, or saved as KML (Google Earth) or GeoJSON (QGIS, uMap). Files are made in the browser; the image itself is not included, only its SHA-256 hash, and file names carry only the date and the start of that hash. Links open the point in Google Maps, Google Earth, OpenStreetMap, Mapillary and Copernicus Browser; opening one sends the coordinates to that service.
+
 Local history: by default the browser keeps the last 20 analyses, including the images, in IndexedDB on the user's device. Saving can be turned off in the History tab; Settings → Clear Local Data deletes the history together with the key and settings.
 
 ## Development
@@ -36,6 +38,7 @@ src/
   App.tsx                         UI (most of it; to be split into components)
   components/                     UI components (Google Search suggestions frame)
   lib/coords.ts                   coordinate formatting
+  lib/exportResult.ts             Markdown, KML and GeoJSON export, map links
   lib/historyStore.ts             local analysis history in IndexedDB
   services/config.ts              settings, model list, local storage
   services/geo/

@@ -31,7 +31,9 @@ import {
   AlertCircle,
   Copy,
   Eye,
-  EyeOff
+  EyeOff,
+  Download,
+  FileText
 } from 'lucide-react';
 import {
   getGeoProvider,
@@ -62,7 +64,20 @@ import {
   setHistoryEnabled,
   type HistoryItem,
 } from './lib/historyStore';
+import {
+  base64ToBytes,
+  buildGeoJson,
+  buildKml,
+  buildMarkdownReport,
+  downloadText,
+  exportFileName,
+  mapLinks,
+  sha256Hex,
+  type ExportContext,
+} from './lib/exportResult';
 import Markdown from 'react-markdown';
+
+const CHAT_INTRO = 'Ask about the image or the analysis. Answers are model output and need independent verification.';
 
 // Fix for Leaflet default marker icon
 const DefaultIcon = L.icon({
@@ -236,7 +251,7 @@ export default function App() {
     if (result && image && config.apiKey) {
       try {
         setChatSession(getGeoProvider().createChatSession({ base64Data: image.split(',')[1], mimeType: mimeTypeOf(image) }, result));
-        setMessages([{ role: 'model', text: 'Ask about the image or the analysis. Answers are model output and need independent verification.' }]);
+        setMessages([{ role: 'model', text: CHAT_INTRO }]);
       } catch (e) {
         console.error('Chat session creation failed:', e);
         setError(errorMessage(e));
@@ -408,6 +423,44 @@ export default function App() {
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text).catch((e) => console.error('Clipboard write failed', e));
+  };
+
+  const [exportNotice, setExportNotice] = useState<string | null>(null);
+
+  const showExportNotice = (text: string) => {
+    setExportNotice(text);
+    setTimeout(() => setExportNotice((current) => (current === text ? null : current)), 2500);
+  };
+
+  const exportContext = async (): Promise<ExportContext | null> => {
+    if (!image) return null;
+    return {
+      imageSha256: await sha256Hex(base64ToBytes(image.split(',')[1])),
+      chat: messages.filter((m) => m.text !== CHAT_INTRO),
+    };
+  };
+
+  const exportResult = async (format: 'copy' | 'md' | 'kml' | 'geojson') => {
+    if (!result) return;
+    try {
+      const ctx = await exportContext();
+      if (!ctx) return;
+      if (format === 'copy') {
+        await navigator.clipboard.writeText(buildMarkdownReport(result, ctx));
+        showExportNotice('Report copied');
+      } else if (format === 'md') {
+        downloadText(buildMarkdownReport(result, ctx), exportFileName(result, ctx, 'md'), 'text/markdown;charset=utf-8');
+      } else if (format === 'kml') {
+        const kml = buildKml(result, ctx);
+        if (kml) downloadText(kml, exportFileName(result, ctx, 'kml'), 'application/vnd.google-earth.kml+xml');
+      } else {
+        const geojson = buildGeoJson(result, ctx);
+        if (geojson) downloadText(geojson, exportFileName(result, ctx, 'geojson'), 'application/geo+json');
+      }
+    } catch (e) {
+      console.error('Export failed', e);
+      showExportNotice('Export failed');
+    }
   };
 
   return (
@@ -592,24 +645,69 @@ export default function App() {
                         </span>
                       </div>
                       {result?.coordinates && (
-                        <div className="flex gap-2 mt-2">
-                          <button 
-                            onClick={() => result.coordinates && window.open(`https://www.google.com/maps/search/?api=1&query=${result.coordinates.lat},${result.coordinates.lng}`, '_blank', 'noopener,noreferrer')}
-                            className="flex-1 py-2 bg-white/5 border border-white/10 rounded text-[10px] text-gray-400 hover:bg-white/10 hover:text-white transition-all uppercase tracking-widest"
-                          >
-                            Earth View
-                          </button>
+                        <div className="space-y-2 mt-2">
                           <button 
                             onClick={() => result.coordinates && copyToClipboard(formatDecimalPair(result.coordinates))}
-                            className="px-3 py-2 bg-white/5 border border-white/10 rounded text-[10px] text-gray-400 hover:bg-white/10 hover:text-white transition-all uppercase tracking-widest flex items-center justify-center"
-                            title="Copy Coordinates"
+                            className="w-full py-2 bg-white/5 border border-white/10 rounded text-[10px] text-gray-400 hover:bg-white/10 hover:text-white transition-all uppercase tracking-widest flex items-center justify-center gap-2"
                           >
-                            <Copy className="w-3 h-3" />
+                            <Copy className="w-3 h-3" /> Copy Coordinates
                           </button>
+                          <div className="flex flex-wrap gap-1.5">
+                            {mapLinks(result.coordinates).map((link) => (
+                              <a
+                                key={link.label}
+                                href={link.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[9px] text-gray-400 hover:bg-white/10 hover:text-white transition-all flex items-center gap-1"
+                              >
+                                {link.label} <ExternalLink className="w-2.5 h-2.5" />
+                              </a>
+                            ))}
+                          </div>
+                          <p className="text-[9px] text-gray-600 leading-snug">Opening a map sends the coordinates to that service.</p>
                         </div>
                       )}
                     </div>
                   </section>
+
+                  {/* Export */}
+                  {result && image && (
+                    <section className="space-y-3">
+                      <label className="text-[10px] uppercase tracking-widest text-gray-500 font-bold block">Export</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={() => exportResult('copy')}
+                          className="py-2 bg-white/5 border border-white/10 rounded text-[10px] text-gray-400 hover:bg-white/10 hover:text-white transition-all uppercase tracking-widest flex items-center justify-center gap-1.5"
+                        >
+                          <Copy className="w-3 h-3" /> Copy Report
+                        </button>
+                        <button
+                          onClick={() => exportResult('md')}
+                          className="py-2 bg-white/5 border border-white/10 rounded text-[10px] text-gray-400 hover:bg-white/10 hover:text-white transition-all uppercase tracking-widest flex items-center justify-center gap-1.5"
+                        >
+                          <FileText className="w-3 h-3" /> Markdown
+                        </button>
+                        <button
+                          onClick={() => exportResult('kml')}
+                          disabled={!result.coordinates}
+                          className="py-2 bg-white/5 border border-white/10 rounded text-[10px] text-gray-400 hover:bg-white/10 hover:text-white transition-all uppercase tracking-widest flex items-center justify-center gap-1.5 disabled:opacity-30 disabled:pointer-events-none"
+                        >
+                          <Download className="w-3 h-3" /> KML
+                        </button>
+                        <button
+                          onClick={() => exportResult('geojson')}
+                          disabled={!result.coordinates}
+                          className="py-2 bg-white/5 border border-white/10 rounded text-[10px] text-gray-400 hover:bg-white/10 hover:text-white transition-all uppercase tracking-widest flex items-center justify-center gap-1.5 disabled:opacity-30 disabled:pointer-events-none"
+                        >
+                          <Download className="w-3 h-3" /> GeoJSON
+                        </button>
+                      </div>
+                      <p className="text-[9px] text-gray-600 leading-snug" aria-live="polite">
+                        {exportNotice ?? 'Files are made in this browser. The image is not included, only its SHA-256 hash.'}
+                      </p>
+                    </section>
+                  )}
 
                   {/* Heuristic Summary */}
                   <section className="space-y-3">

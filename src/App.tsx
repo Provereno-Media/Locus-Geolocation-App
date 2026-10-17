@@ -1403,7 +1403,7 @@ export default function App() {
           <span>VERSION 0.4</span>
         </div>
         <div className="text-[10px] text-gray-600 font-mono uppercase tracking-[0.2em] hidden sm:block">
-          Vibecoded by Pavel "Pogoda" Bannikov for Provereno.Media
+          Pavel "Pogoda" Bannikov for Provereno.Media
         </div>
       </footer>
     </div>

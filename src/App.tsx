@@ -1399,11 +1399,17 @@ export default function App() {
 
       {/* Footer Status Bar */}
       <footer className="h-10 bg-[#0f0f0f] border-t border-white/10 px-3 md:px-6 flex items-center justify-between shrink-0">
-        <div className="flex gap-6 text-[10px] font-mono text-gray-600 uppercase tracking-tight">
+        <div className="flex items-center gap-4 md:gap-6 text-[10px] font-mono text-gray-600 uppercase tracking-tight">
           <span>VERSION 0.4</span>
+          <span className="flex items-center gap-2">
+            Donate:
+            <a href="https://buy.stripe.com/cN229pfEm1xj0I8fYY" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-cyan-400 transition-colors">Stripe</a>
+            <span>·</span>
+            <a href="https://www.patreon.com/c/provereno" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-cyan-400 transition-colors">Patreon</a>
+          </span>
         </div>
         <div className="text-[10px] text-gray-600 font-mono uppercase tracking-[0.2em] hidden sm:block">
-          Vibecoded by Pavel "Pogoda" Bannikov for Provereno.Media
+          Pavel "Pogoda" Bannikov for Provereno.Media
         </div>
       </footer>
     </div>

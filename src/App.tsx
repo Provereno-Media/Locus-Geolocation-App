@@ -1006,7 +1006,7 @@ export default function App() {
                   <img 
                     src={image} 
                     alt="Target" 
-                    className={`max-w-full max-h-[60vh] rounded-sm shadow-2xl transition-all border border-white/20 ${isAnalyzing ? 'opacity-40 grayscale blur-[2px]' : 'opacity-90'}`} 
+                    className={`max-w-full max-h-[min(60vh,calc(100dvh-27rem))] rounded-sm shadow-2xl transition-all border border-white/20 ${isAnalyzing ? 'opacity-40 grayscale blur-[2px]' : 'opacity-90'}`} 
                   />
                   
                   {/* Scanning Overlay */}

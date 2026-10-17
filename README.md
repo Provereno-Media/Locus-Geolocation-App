@@ -13,9 +13,11 @@ LOCUS sends an image to Google Gemini with Google Maps or Google Search groundin
 
 Privacy note: on Google's free tier, submitted content may be used to improve Google products and may be reviewed by humans; with billing enabled, Google's paid-service terms apply.
 
+Local history: by default the browser keeps the last 20 analyses, including the images, in IndexedDB on the user's device. Saving can be turned off in the History tab; Settings → Clear Local Data deletes the history together with the key and settings.
+
 ## Development
 
-Requires Node.js 20+.
+Requires Node.js 22.12+ (Vitest 5 does not run on Node 20).
 
 ```bash
 npm install
@@ -29,9 +31,10 @@ npm run build      # static files in dist/
 
 ```
 src/
-  App.tsx                         UI (to be split into components, task U5)
-  components/                     UI components
+  App.tsx                         UI (most of it; to be split into components)
+  components/                     UI components (Google Search suggestions frame)
   lib/coords.ts                   coordinate formatting
+  lib/historyStore.ts             local analysis history in IndexedDB
   services/config.ts              settings, model list, local storage
   services/geo/
     types.ts                      GeoProvider interface and result types

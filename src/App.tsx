@@ -411,10 +411,10 @@ export default function App() {
   };
 
   return (
-    <div className="h-screen bg-[#0a0a0a] text-gray-200 font-sans flex flex-col overflow-hidden selection:bg-cyan-900/40">
+    <div className="min-h-screen md:h-screen bg-[#0a0a0a] text-gray-200 font-sans flex flex-col md:overflow-hidden selection:bg-cyan-900/40">
       {/* Header Bar */}
-      <header className="h-16 border-b border-white/10 flex items-center justify-between px-6 bg-[#0f0f0f] shrink-0">
-        <div className="flex items-center gap-3">
+      <header className="h-16 border-b border-white/10 flex items-center justify-between gap-2 px-3 md:px-6 bg-[#0f0f0f] shrink-0">
+        <div className="flex items-center gap-2 md:gap-3 min-w-0">
           <h1 className="text-lg font-semibold tracking-tight text-white uppercase flex items-baseline gap-2">
             LOCUS <span className="text-xs font-medium text-gray-500 uppercase tracking-widest">by</span>
           </h1>
@@ -422,7 +422,7 @@ export default function App() {
             <img 
               src={`${import.meta.env.BASE_URL}Provereno Logo.png`} 
               alt="Provereno Logo" 
-              className="h-6 md:h-7 object-contain rounded-sm" 
+              className="h-5 md:h-7 shrink-0 object-contain rounded-sm" 
             />
           </a>
 
@@ -448,8 +448,8 @@ export default function App() {
           </div>
         </div>
         
-        <div className="flex items-center gap-4">
-          <div className="relative hidden md:block">
+        <div className="flex items-center gap-2 md:gap-4 shrink-0">
+          <div className="relative hidden xl:block">
             <History className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
             <div className="w-80 bg-white/5 border border-white/10 rounded-full py-1.5 px-9 text-[10px] text-gray-500 font-mono flex items-center gap-2">
               <span className="text-cyan-500 animate-pulse">●</span>
@@ -470,10 +470,10 @@ export default function App() {
           {!config.apiKey ? (
             <button 
               onClick={openSettings}
-              className="px-5 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider transition-all border border-amber-500/50 text-amber-500 hover:bg-amber-500/10 flex items-center gap-1.5 shadow-[0_0_15px_rgba(245,158,11,0.1)] hover:shadow-[0_0_20px_rgba(245,158,11,0.2)] animate-pulse"
+              className="px-3 md:px-5 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider whitespace-nowrap transition-all border border-amber-500/50 text-amber-500 hover:bg-amber-500/10 flex items-center gap-1.5 shadow-[0_0_15px_rgba(245,158,11,0.1)] hover:shadow-[0_0_20px_rgba(245,158,11,0.2)] animate-pulse"
             >
               <Key className="w-3.5 h-3.5" />
-              Configure API Key
+              <span className="hidden sm:inline">Configure</span> API Key
             </button>
           ) : (
             <>
@@ -482,17 +482,18 @@ export default function App() {
                 onClick={openFilePicker}
                 disabled={isAnalyzing}
                 title="Load another image for a new analysis"
-                className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all flex items-center gap-1.5 border ${isAnalyzing ? 'bg-white/5 text-gray-600 border-white/10 cursor-not-allowed' : 'border-cyan-500/40 text-cyan-400 hover:bg-cyan-500/10'}`}
+                aria-label="New Photo"
+                className={`px-2.5 md:px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all flex items-center gap-1.5 border ${isAnalyzing ? 'bg-white/5 text-gray-600 border-white/10 cursor-not-allowed' : 'border-cyan-500/40 text-cyan-400 hover:bg-cyan-500/10'}`}
               >
                 <Upload className="w-3.5 h-3.5" />
-                New Photo
+                <span className="hidden sm:inline">New Photo</span>
               </button>
             )}
             <button 
               disabled={!image || isAnalyzing || !!result}
               onClick={handleAnalyze}
               className={`
-                px-6 py-1.5 rounded-full text-sm font-medium transition-all
+                px-4 md:px-6 py-1.5 rounded-full text-xs md:text-sm font-medium whitespace-nowrap transition-all
                 ${image && !result && !isAnalyzing 
                   ? 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-[0_0_15px_rgba(8,145,178,0.3)]' 
                   : 'bg-white/5 text-gray-500 border border-white/10 cursor-not-allowed'}
@@ -517,9 +518,9 @@ export default function App() {
         </div>
       </header>
 
-      <main className="flex-1 flex overflow-hidden">
+      <main className="flex-1 flex flex-col md:flex-row md:overflow-hidden">
         {/* Sidebar: Status & Results */}
-        <aside className="w-80 border-r border-white/10 bg-[#0f0f0f] flex flex-col shrink-0 overflow-hidden">
+        <aside className="order-2 md:order-none w-full md:w-80 border-t md:border-t-0 md:border-r border-white/10 bg-[#0f0f0f] flex flex-col shrink-0 md:overflow-hidden">
           {/* Tab Switcher */}
           <div className="flex border-b border-white/10 bg-black/40">
             <button 
@@ -840,12 +841,12 @@ export default function App() {
         </aside>
 
         {/* Main View Port */}
-        <section className="flex-1 relative bg-[#050505] flex flex-col overflow-hidden">
+        <section className="flex-1 relative bg-[#050505] flex flex-col md:overflow-hidden">
           {/* Map & Context Overlay Bar */}
-          <div className="p-4 shrink-0 z-20">
+          <div className="p-3 md:p-4 shrink-0 z-20">
             <div className="bg-black/60 backdrop-blur-xl border border-white/10 rounded-xl flex flex-col md:flex-row items-stretch overflow-hidden">
                {/* Map Preview */}
-               <div className="w-40 h-40 shrink-0 bg-gray-950 border-r border-white/10 relative overflow-hidden group">
+               <div className={`${result?.coordinates ? 'h-40' : 'hidden md:block md:h-40'} w-full md:w-40 shrink-0 bg-gray-950 border-b md:border-b-0 md:border-r border-white/10 relative overflow-hidden group`}>
                   {result?.coordinates ? (
                     <MapContainer 
                       center={mapCenter} 
@@ -880,7 +881,7 @@ export default function App() {
                </div>
 
                {/* Data Visualization */}
-               <div className="flex-1 p-4 flex flex-wrap gap-6 items-center bg-gradient-to-r from-transparent to-white/5">
+               <div className="flex-1 p-4 flex flex-wrap gap-4 md:gap-6 items-center bg-gradient-to-r from-transparent to-white/5">
                   <div className="space-y-1">
                      <span className="text-[9px] text-gray-500 uppercase font-bold tracking-widest block">System Context</span>
                      <span className="text-lg font-light text-white block">
@@ -944,7 +945,7 @@ export default function App() {
           </div>
 
           {/* Main Display Area */}
-          <div {...getRootProps({ className: 'flex-1 relative flex items-center justify-center p-8 overflow-auto custom-scrollbar' })}>
+          <div {...getRootProps({ className: 'flex-1 relative flex items-center justify-center p-4 md:p-8 md:overflow-auto custom-scrollbar' })}>
             <input {...getInputProps()} />
             {image && isDragActive && (
               <div className="absolute inset-4 z-30 border-2 border-dashed border-cyan-500 bg-cyan-500/10 rounded-lg flex items-center justify-center pointer-events-none">
@@ -954,7 +955,7 @@ export default function App() {
             {!image ? (
               !config.apiKey ? (
                 /* LOCKED Dropzone Empty State */
-                <div className="w-full max-w-2xl h-[400px] border-2 border-dashed border-amber-500/30 rounded-lg bg-amber-500/5 flex flex-col items-center justify-center text-center gap-4 relative overflow-hidden group p-6">
+                <div className="w-full max-w-2xl h-[260px] md:h-[400px] border-2 border-dashed border-amber-500/30 rounded-lg bg-amber-500/5 flex flex-col items-center justify-center text-center gap-4 relative overflow-hidden group p-6">
                   <div className="absolute inset-0 bg-[#000]/30 backdrop-blur-[2px] flex flex-col items-center justify-center gap-4 z-10 p-6">
                     <div className="w-14 h-14 rounded-full border border-amber-500/30 bg-amber-500/10 flex items-center justify-center text-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.2)]">
                       <Key className="w-6 h-6 animate-pulse" />
@@ -986,7 +987,7 @@ export default function App() {
                     }
                   }}
                   className={`
-                    w-full max-w-2xl h-[400px] border-2 border-dashed rounded-lg transition-all 
+                    w-full max-w-2xl h-[260px] md:h-[400px] border-2 border-dashed rounded-lg transition-all 
                     flex flex-col items-center justify-center text-center gap-4 cursor-pointer
                     ${isDragActive ? 'border-cyan-500 bg-cyan-500/5 scale-105' : 'border-white/5 hover:border-white/20 bg-white/2'}
                   `}
@@ -1006,7 +1007,7 @@ export default function App() {
                   <img 
                     src={image} 
                     alt="Target" 
-                    className={`max-w-full max-h-[min(60vh,calc(100dvh-27rem))] rounded-sm shadow-2xl transition-all border border-white/20 ${isAnalyzing ? 'opacity-40 grayscale blur-[2px]' : 'opacity-90'}`} 
+                    className={`max-w-full max-h-[60vh] md:max-h-[min(60vh,calc(100dvh-27rem))] rounded-sm shadow-2xl transition-all border border-white/20 ${isAnalyzing ? 'opacity-40 grayscale blur-[2px]' : 'opacity-90'}`} 
                   />
                   
                   {/* Scanning Overlay */}
@@ -1028,14 +1029,14 @@ export default function App() {
                   </AnimatePresence>
 
                   {/* Corner Guards */}
-                  <div className="absolute -top-4 -left-4 w-12 h-12 border-t-2 border-l-2 border-cyan-500/40"></div>
-                  <div className="absolute -bottom-4 -right-4 w-12 h-12 border-b-2 border-r-2 border-cyan-500/40"></div>
+                  <div className="absolute -top-2 -left-2 md:-top-4 md:-left-4 w-12 h-12 border-t-2 border-l-2 border-cyan-500/40"></div>
+                  <div className="absolute -bottom-2 -right-2 md:-bottom-4 md:-right-4 w-12 h-12 border-b-2 border-r-2 border-cyan-500/40"></div>
 
                   <button 
                     onClick={reset}
                     title="Clear image"
                     aria-label="Clear image"
-                    className="absolute -top-6 -right-6 bg-white/10 hover:bg-red-500/20 p-2 rounded-full text-white/50 hover:text-white transition-all backdrop-blur-md"
+                    className="absolute -top-4 -right-3 md:-top-6 md:-right-6 bg-white/10 hover:bg-red-500/20 p-2 rounded-full text-white/50 hover:text-white transition-all backdrop-blur-md"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -1075,7 +1076,7 @@ export default function App() {
 
         {/* Chat Sidebar */}
         {result && isChatOpen && (
-          <aside className="w-[420px] border-l border-cyan-500/20 bg-[#050505] flex flex-col shrink-0 overflow-hidden z-20 relative">
+          <aside className="fixed inset-0 z-40 md:relative md:inset-auto md:z-20 w-full md:w-[420px] md:border-l border-cyan-500/20 bg-[#050505] flex flex-col shrink-0 overflow-hidden">
             {/* Header */}
             <div className="h-[52px] border-b border-cyan-500/20 bg-cyan-950/20 flex items-center justify-between px-4 shrink-0 relative overflow-hidden">
                <div className="absolute top-0 left-0 w-full h-[1px] bg-cyan-500/30"></div>
@@ -1397,7 +1398,7 @@ export default function App() {
       </AnimatePresence>
 
       {/* Footer Status Bar */}
-      <footer className="h-10 bg-[#0f0f0f] border-t border-white/10 px-6 flex items-center justify-between shrink-0">
+      <footer className="h-10 bg-[#0f0f0f] border-t border-white/10 px-3 md:px-6 flex items-center justify-between shrink-0">
         <div className="flex gap-6 text-[10px] font-mono text-gray-600 uppercase tracking-tight">
           <span>VERSION 0.4</span>
         </div>

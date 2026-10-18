@@ -11,8 +11,9 @@ const truthSchema = z.object({
 
 export const evalItemSchema = z
   .object({
-    id: z.string().regex(/^e\d{3}$/),
-    file: z.string().regex(/^images\/e\d{3}\.(jpg|png|webp)$/),
+    // Difficulty letter (e easy, m medium, h hard, u unanswerable) and a number.
+    id: z.string().regex(/^[emhu]\d{3}$/),
+    file: z.string().regex(/^images\/[emhu]\d{3}\.(jpg|jpeg|png|webp)$/),
     difficulty: z.enum(['easy', 'medium', 'hard', 'unanswerable']),
     mode: z.enum(['visual', 'satellite', 'flora']),
     country: z.string().regex(/^[A-Z]{2}$/).nullish(),
@@ -33,6 +34,10 @@ export const evalItemSchema = z
   .refine((item) => (item.difficulty === 'unanswerable') === (item.truth === null), {
     message: 'truth must be null exactly for unanswerable items',
     path: ['truth'],
+  })
+  .refine((item) => item.file.replace(/^images\//, '').replace(/\.[a-z]+$/, '') === item.id, {
+    message: 'file name must be the id',
+    path: ['file'],
   });
 
 export const manifestSchema = z.object({
@@ -44,6 +49,7 @@ export type EvalItem = z.infer<typeof evalItemSchema>;
 
 const MIME_TYPES: Record<string, string> = {
   '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
   '.png': 'image/png',
   '.webp': 'image/webp',
 };

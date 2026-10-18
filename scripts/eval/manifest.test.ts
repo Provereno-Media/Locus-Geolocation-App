@@ -27,12 +27,26 @@ describe('parseManifest', () => {
   it('rejects duplicate ids and file names other than the id', () => {
     expect(() => parseManifest({ version: 1, items: [entry, entry] })).toThrow('Duplicate id e001');
     expect(() => parseManifest({ version: 1, items: [{ ...entry, file: 'images/IMG_2041.jpg' }] })).toThrow();
+    expect(() => parseManifest({ version: 1, items: [{ ...entry, file: 'images/e002.jpg' }] })).toThrow();
+  });
+
+  it('accepts difficulty letters and .jpeg files', () => {
+    const items = parseManifest({
+      version: 1,
+      items: [
+        { ...entry, id: 'm002', file: 'images/m002.jpeg', difficulty: 'medium' },
+        { ...entry, id: 'u001', file: 'images/u001.png', difficulty: 'unanswerable', truth: null },
+      ],
+    });
+    expect(items.map((i) => i.id)).toEqual(['m002', 'u001']);
+    expect(() => parseManifest({ version: 1, items: [{ ...entry, file: 'images/e001.JPG' }] })).toThrow();
   });
 });
 
 describe('mimeTypeOf', () => {
   it('maps the allowed extensions', () => {
     expect(mimeTypeOf('images/e001.jpg')).toBe('image/jpeg');
+    expect(mimeTypeOf('images/e001.jpeg')).toBe('image/jpeg');
     expect(mimeTypeOf('images/e001.webp')).toBe('image/webp');
   });
 });

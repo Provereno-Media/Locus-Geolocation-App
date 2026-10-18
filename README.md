@@ -6,7 +6,8 @@ LOCUS sends an image to Google Gemini with Google Maps or Google Search groundin
 
 ## How it works
 
-**[Try it here with your Gemini API Key](https://provereno-media.github.io/Locus-Geolocation-App/)**
+### **[Try it here with your Gemini API Key](https://provereno-media.github.io/Locus-Geolocation-App/)**
+
 <img width="1437" height="780" alt="locus" src="https://github.com/user-attachments/assets/2881fdc4-1c31-4d56-b9e7-05faeb698c29" />
 
 - **Free tier (BYOK).** Runs entirely in the browser. Each user enters their own Gemini API key in Settings; the browser calls the Gemini API directly. Provereno servers never receive images or keys. See [ADR-001](docs/adr/ADR-001-access-tiers.md).

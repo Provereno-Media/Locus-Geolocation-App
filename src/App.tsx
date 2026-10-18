@@ -33,7 +33,8 @@ import {
   Eye,
   EyeOff,
   Download,
-  FileText
+  FileText,
+  FileUp
 } from 'lucide-react';
 import {
   getGeoProvider,
@@ -56,10 +57,12 @@ import {
 import { formatDecimalPair, formatLatitude, formatLongitude } from './lib/coords';
 import { SearchEntryPointFrame } from './components/SearchEntryPointFrame';
 import {
+  buildHistoryExport,
   isHistoryEnabled,
   loadHistory,
   MAX_HISTORY,
   mergeHistory,
+  parseHistoryImport,
   saveHistory,
   setHistoryEnabled,
   type HistoryItem,
@@ -359,6 +362,30 @@ export default function App() {
     setFile(null);
     setError(null);
     setActiveTab('analysis');
+  };
+
+  const [historyNotice, setHistoryNotice] = useState<string | null>(null);
+  const historyFileInputRef = useRef<HTMLInputElement>(null);
+
+  const exportHistory = () => {
+    downloadText(buildHistoryExport(history), `locus-history-${new Date().toISOString().slice(0, 10)}.json`, 'application/json');
+  };
+
+  const importHistory = async (file: File) => {
+    try {
+      const { items, skipped } = parseHistoryImport(await file.text());
+      const merged = mergeHistory(history, items);
+      const added = merged.filter((item) => !history.some((h) => h.id === item.id)).length;
+      // An analysis may finish while the file is read, so merge into the latest state.
+      setHistory((prev) => mergeHistory(prev, items));
+      const notes = [`Imported ${added} of ${items.length + skipped} records.`];
+      if (skipped > 0) notes.push(`${skipped} could not be read.`);
+      if (items.length - added > 0) notes.push(`${items.length - added} were already here or beyond the limit of ${MAX_HISTORY}.`);
+      setHistoryNotice(notes.join(' '));
+    } catch (e) {
+      console.error('History import failed', e);
+      setHistoryNotice(e instanceof Error ? e.message : 'Import failed.');
+    }
   };
 
   const deleteHistoryItem = (id: string, e: MouseEvent) => {
@@ -889,6 +916,33 @@ export default function App() {
                       />
                       Save new analyses to history
                     </label>
+                    <div className="flex gap-2 pt-1">
+                      <button
+                        onClick={exportHistory}
+                        disabled={history.length === 0}
+                        className="flex-1 py-1.5 bg-white/5 border border-white/10 rounded text-[9px] text-gray-400 hover:bg-white/10 hover:text-white transition-all uppercase tracking-widest flex items-center justify-center gap-1.5 disabled:opacity-30 disabled:pointer-events-none"
+                      >
+                        <Download className="w-3 h-3" /> Export JSON
+                      </button>
+                      <button
+                        onClick={() => historyFileInputRef.current?.click()}
+                        className="flex-1 py-1.5 bg-white/5 border border-white/10 rounded text-[9px] text-gray-400 hover:bg-white/10 hover:text-white transition-all uppercase tracking-widest flex items-center justify-center gap-1.5"
+                      >
+                        <FileUp className="w-3 h-3" /> Import JSON
+                      </button>
+                      <input
+                        ref={historyFileInputRef}
+                        type="file"
+                        accept="application/json,.json"
+                        className="hidden"
+                        onChange={(e) => {
+                          const selected = e.target.files?.[0];
+                          e.target.value = '';
+                          if (selected) void importHistory(selected);
+                        }}
+                      />
+                    </div>
+                    <p aria-live="polite">{historyNotice ?? 'The export file contains the images and analysis text without encryption.'}</p>
                   </div>
                   
                   {history.length === 0 ? (

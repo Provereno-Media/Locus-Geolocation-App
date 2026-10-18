@@ -15,11 +15,16 @@ const DB_VERSION = 1;
 const STORE = 'history';
 const ENABLED_KEY = 'locus_history_enabled';
 
+/** Only inline base64 images: an imported file must not make the browser load anything. */
+const IMAGE_DATA_URL = /^data:image\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/=]+$/i;
+
 function parseItem(item: unknown): HistoryItem | null {
   if (!item || typeof item !== 'object') return null;
   const { id, image, timestamp, result } = item as Record<string, unknown>;
   const normalized = normalizeStoredResult(result);
-  if (typeof id !== 'string' || typeof image !== 'string' || !normalized) return null;
+  if (typeof id !== 'string' || id === '' || typeof image !== 'string' || !IMAGE_DATA_URL.test(image) || !normalized) {
+    return null;
+  }
   return { id, image, timestamp: typeof timestamp === 'number' ? timestamp : 0, result: normalized };
 }
 
@@ -134,4 +139,38 @@ export function setHistoryEnabled(enabled: boolean): void {
   } catch (e) {
     console.error('Could not save history preference', e);
   }
+}
+
+export const HISTORY_EXPORT_FORMAT = 'locus-history';
+
+/** Backup file with the analyses and their images, newest first. */
+export function buildHistoryExport(items: HistoryItem[], exportedAt = new Date()): string {
+  return `${JSON.stringify({ format: HISTORY_EXPORT_FORMAT, version: 1, exportedAt: exportedAt.toISOString(), items }, null, 2)}\n`;
+}
+
+export interface HistoryImport {
+  items: HistoryItem[];
+  /** Records in the file that could not be read */
+  skipped: number;
+}
+
+/** Reads a file made by buildHistoryExport, or a bare array of history records. Throws on other files. */
+export function parseHistoryImport(text: string): HistoryImport {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    throw new Error('The file is not valid JSON.');
+  }
+  let records: unknown;
+  if (Array.isArray(raw)) {
+    records = raw;
+  } else if (raw && typeof raw === 'object' && (raw as Record<string, unknown>).format === HISTORY_EXPORT_FORMAT) {
+    const { version, items } = raw as Record<string, unknown>;
+    if (version !== 1) throw new Error(`Unsupported history file version: ${String(version)}.`);
+    records = items;
+  }
+  if (!Array.isArray(records)) throw new Error('The file is not a LOCUS history export.');
+  const items = records.flatMap((record) => parseItem(record) ?? []);
+  return { items, skipped: records.length - items.length };
 }

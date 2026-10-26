@@ -8,7 +8,9 @@ import { defineConfig, type Plugin } from 'vite';
  * Content Security Policy for the built app (ADR-001, stage 1, item 3).
  * Injected as <meta> so it applies on any static host. The host should also send
  * it as a Content-Security-Policy header with `frame-ancestors 'none'` added:
- * that directive only works in a header.
+ * that directive only works in a header. HTTPS hosts may also add
+ * `upgrade-insecure-requests` there. Keep it out of the portable HTML: WebKit
+ * upgrades localhost asset URLs to HTTPS even when preview serves HTTP.
  * style-src needs 'unsafe-inline': the Google Search suggestions chip ships inline
  * styles and is rendered via srcdoc, which inherits this policy.
  */
@@ -22,7 +24,6 @@ export const CONTENT_SECURITY_POLICY = [
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
-  'upgrade-insecure-requests',
 ].join('; ');
 
 // Build only: the dev server relies on inline scripts for HMR.

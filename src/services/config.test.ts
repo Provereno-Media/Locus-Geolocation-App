@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearLocalData, DEFAULT_MODEL, getConfig, hasValidKeyChars, normalizeApiKey, saveConfig } from './config';
+import { clearLocalData, DEFAULT_MODEL, defaultGroundingForModel, FREE_MODEL, getConfig, hasValidKeyChars, normalizeApiKey, saveConfig } from './config';
 
 class MemoryStorage {
   private data = new Map<string, string>();
@@ -33,9 +33,17 @@ describe('config storage', () => {
   });
 
   it('replaces a saved model that is no longer offered with the default', () => {
-    local.setItem('locus_config', JSON.stringify({ apiKey: 'k', modelName: 'gemini-2.5-flash', rememberKey: true }));
+    local.setItem('locus_config', JSON.stringify({ apiKey: 'k', modelName: 'withdrawn-model', rememberKey: true }));
     expect(getConfig().modelName).toBe(DEFAULT_MODEL);
     expect(DEFAULT_MODEL).toBe('gemini-3.6-flash');
+  });
+
+  it('preserves a saved Free model across reloads and uses Search by default', () => {
+    saveConfig({ apiKey: 'k', modelName: FREE_MODEL, rememberKey: true });
+    const config = getConfig();
+    expect(config.modelName).toBe('gemini-2.5-flash');
+    expect(defaultGroundingForModel(config.modelName)).toBe('search');
+    expect(defaultGroundingForModel(DEFAULT_MODEL)).toBe('maps');
   });
 
   it('reads configs saved before the rememberKey option as remembered', () => {

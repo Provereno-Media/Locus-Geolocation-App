@@ -47,6 +47,8 @@ import {
 import {
   clearLocalData,
   DEFAULT_CONFIG,
+  defaultGroundingForModel,
+  FREE_MODEL,
   getConfig,
   hasValidKeyChars,
   normalizeApiKey,
@@ -104,7 +106,7 @@ function mimeTypeOf(dataUrl: string): string {
 function isKeyRelated(err: unknown): boolean {
   return (
     err instanceof LocusError &&
-    (err.code === 'AUTH' || err.code === 'BAD_KEY' || err.code === 'QUOTA' || err.code === 'GROUNDING_QUOTA' || err.code === 'MODEL_UNAVAILABLE')
+    (err.code === 'AUTH' || err.code === 'BAD_KEY' || err.code === 'QUOTA' || err.code === 'GROUNDING_QUOTA' || err.code === 'MODEL_UNAVAILABLE' || err.code === 'MODEL_RETIRED')
   );
 }
 
@@ -199,10 +201,10 @@ export default function App() {
   currentImageRef.current = image;
   const [activeTab, setActiveTab] = useState<'analysis' | 'history'>('analysis');
   const [analysisMode, setAnalysisMode] = useState<AnalysisMode>('visual');
-  const [groundingTool, setGroundingTool] = useState<GroundingTool>('maps');
 
   // Config Management
   const [config, setConfig] = useState<LocusConfig>(() => getConfig());
+  const [groundingTool, setGroundingTool] = useState<GroundingTool>(() => defaultGroundingForModel(config.modelName));
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState(config.apiKey);
   const [selectedModel, setSelectedModel] = useState(config.modelName);
@@ -1400,7 +1402,9 @@ export default function App() {
                     On Google's free tier, submitted images may be used to improve Google products and may be seen by human reviewers. Do not upload sensitive or unpublished material with a free-tier key.
                   </p>
                   <p className="text-cyan-300/90">
-                    LOCUS requires a key from a project with billing enabled; up to 5,000 search queries per month are free. Google Search and Maps grounding, which LOCUS uses to check locations, is not available on the free tier.
+                    {selectedModel === FREE_MODEL
+                      ? 'Gemini 2.5 Flash supports free grounding quotas on eligible existing Google AI Studio projects. Google restricts access for new projects. WEB SEARCH is selected by default for this model; Maps may have different quotas.'
+                      : 'Google Search and Maps grounding with Gemini 3.x requires a project with billing enabled. If you have a Free key with access to Gemini 2.5 Flash, select it below and use WEB SEARCH. Model and grounding usage have separate limits and pricing.'}
                   </p>
                   <a 
                     href="https://aistudio.google.com/app/apikey" 
@@ -1497,6 +1501,7 @@ export default function App() {
                     if (confirm("Delete the saved API key, settings and analysis history from this browser?")) {
                       clearLocalData();
                       setConfig(DEFAULT_CONFIG);
+                      setGroundingTool(defaultGroundingForModel(DEFAULT_CONFIG.modelName));
                       setHistory([]);
                       setApiKeyInput('');
                       setSelectedModel(DEFAULT_CONFIG.modelName);
@@ -1531,9 +1536,12 @@ export default function App() {
                         alert('Could not save settings: browser storage is unavailable.');
                         return;
                       }
-                      if (savedConfig.apiKey !== config.apiKey) {
+                      if (savedConfig.apiKey !== config.apiKey || savedConfig.modelName !== config.modelName) {
                         setError(null);
                         setErrorNeedsKey(false);
+                      }
+                      if (savedConfig.modelName !== config.modelName) {
+                        setGroundingTool(defaultGroundingForModel(savedConfig.modelName));
                       }
                       setConfig(savedConfig);
                       setIsSettingsOpen(false);

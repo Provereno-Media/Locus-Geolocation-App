@@ -12,7 +12,7 @@ import { loadManifest, mimeTypeOf, type EvalItem } from './manifest';
 import { formatSummary, scoreAttempt, summarize, type Attempt } from './metrics';
 
 /** Errors after which further requests would fail the same way or keep spending quota. */
-const FATAL_ERRORS = new Set(['NO_KEY', 'BAD_KEY', 'AUTH', 'QUOTA', 'GROUNDING_QUOTA', 'REGION', 'MODEL_UNAVAILABLE']);
+const FATAL_ERRORS = new Set(['NO_KEY', 'BAD_KEY', 'AUTH', 'QUOTA', 'GROUNDING_QUOTA', 'REGION', 'MODEL_UNAVAILABLE', 'MODEL_RETIRED']);
 
 const USAGE = `Usage: npm run eval -- --data <locus-eval dir> [options]
 
@@ -104,7 +104,7 @@ async function main(): Promise<number> {
 
   const apiKey = normalizeApiKey(process.env.LOCUS_EVAL_API_KEY ?? '');
   if (!apiKey || !hasValidKeyChars(apiKey)) {
-    console.error('Set LOCUS_EVAL_API_KEY to a Gemini API key from a project with billing enabled.');
+    console.error('Set LOCUS_EVAL_API_KEY to a Gemini API key. Gemini 3.x grounding requires billing; eligible Free projects can use --model gemini-2.5-flash --tool search.');
     return 2;
   }
 

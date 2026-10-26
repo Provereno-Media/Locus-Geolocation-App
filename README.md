@@ -10,8 +10,9 @@ LOCUS sends an image to Google Gemini with Google Maps or Google Search groundin
 
 <img width="1437" height="780" alt="locus" src="https://github.com/user-attachments/assets/2881fdc4-1c31-4d56-b9e7-05faeb698c29" />
 
-- **Free tier (BYOK).** Runs entirely in the browser. Each user enters their own Gemini API key in Settings; the browser calls the Gemini API directly. Provereno servers never receive images or keys. See [ADR-001](docs/adr/ADR-001-access-tiers.md).
-- **LOCUS requires a key from a project with billing enabled; up to 5,000 search queries per month are free (see Google API documentation for actual pricing).** LOCUS checks locations with Google Search and Maps grounding, which Gemini 3.x models do not offer on the free tier (Google's [pricing page](https://ai.google.dev/gemini-api/docs/pricing), checked 2026-10-09). Google may change these terms. The default model is `gemini-3.6-flash`.
+- **BYOK.** Runs entirely in the browser. Each user enters their own Gemini API key in Settings; the browser calls the Gemini API directly. Provereno servers never receive images or keys. See [ADR-001](docs/adr/ADR-001-access-tiers.md).
+- **Google Free tier.** Select **Gemini 2.5 Flash (Free, eligible existing projects)** in Settings. Switching to this model selects **WEB SEARCH**, which is also its default after a reload. Google offers free grounding quotas for this model but restricts access to projects that have used it before; it is not guaranteed for new projects. LOCUS does not automatically switch this selection to a model requiring billing. Checked against Google's [pricing](https://ai.google.dev/gemini-api/docs/pricing#gemini-2.5-flash) and [model availability](https://ai.google.dev/gemini-api/docs/models#gemini-2.5-flash) on 2026-10-26; terms and quotas may change.
+- **Gemini 3.x.** Search and Maps grounding require a project with billing enabled. The default model remains `gemini-3.6-flash`. Free search allowances on the paid tier do not make model input/output tokens free; see [Google's pricing](https://ai.google.dev/gemini-api/docs/pricing).
 - **Pro tier** (planned) will use a Provereno-managed key through a server proxy. Both tiers share the `GeoProvider` interface in `src/services/geo`.
 
 Privacy note: on Google's free tier, submitted content may be used to improve Google products and may be reviewed by humans; with billing enabled, Google's paid-service terms apply.
@@ -31,6 +32,21 @@ npm run typecheck
 npm test
 npm run build      # static files in dist/
 ```
+
+Enter your Gemini API key in the app's Settings. This BYOK version does not read
+`GEMINI_API_KEY` or model settings from `.env.local`, and does not embed the key
+in the build. If port 3000 is busy, run `npm run dev -- --port 3001`.
+
+For an eligible Free key, open Settings, enter the key, select **Gemini 2.5 Flash**,
+and save. Check that **WEB SEARCH** is active, then upload an image and run analysis.
+If Maps returns a quota error for the same key, use WEB SEARCH. If Google rejects
+the model itself, check the project's model access in AI Studio; selecting another
+model may require billing for grounding. Free quotas can still run out.
+
+To check the production build locally, run `npm run preview` after building.
+The HTML CSP supports plain HTTP on localhost, including WebKit-based browsers.
+If WebKit cached HTTPS redirects from an older build, use a fresh preview port:
+`npm run preview -- --port 4174`.
 
 ## Structure
 
@@ -57,12 +73,14 @@ scripts/eval/                     accuracy evaluation against a set of images
 `npm run eval` runs the same analysis code as the app over a set of images with known locations and reports accuracy. The image set lives in a separate private repository (`Provereno-Media/locus-eval`); images are never committed here.
 
 ```bash
-export LOCUS_EVAL_API_KEY=...       # key from a project with billing enabled
+export LOCUS_EVAL_API_KEY=...       # key with grounding access for the selected model
 npm run eval -- --data ../locus-eval --dry-run
 npm run eval -- --data ../locus-eval --model gemini-3.6-flash --tool maps --label baseline
+# Eligible Free projects:
+npm run eval -- --data ../locus-eval --model gemini-2.5-flash --tool search --label free-search
 ```
 
-Options: `--repeat <n>`, `--only e001,e004`, `--manifest <file>`; `npm run eval -- --help` lists them. Every request is billed to the key's project and uses grounding quota; `--dry-run` shows the number of requests first. The run stops at errors that would repeat (invalid key, quota, unavailable model).
+Options: `--repeat <n>`, `--only e001,e004`, `--manifest <file>`; `npm run eval -- --help` lists them. Every request uses the key's model and grounding quotas and may be billed according to its tier; `--dry-run` shows the number of requests first. The run stops at errors that would repeat (invalid key, quota, unavailable model).
 
 The report gives the share of answers within 1 / 25 / 200 / 750 / 2500 km and within each image's own radius, the share of correct refusals on images with no answer, calibration of the model's confidence and the number of grounding queries. Errors count as misses. Answers whose grounding sources include provereno.media or the image's published pages are flagged as possible leaks and left out of the accuracy figures. Results are saved to `<data>/runs/`, as they may contain text read from the images.
 
@@ -77,7 +95,9 @@ Node's `fetch` ignores `HTTPS_PROXY`; behind a proxy, set `NODE_USE_ENV_PROXY=1`
 The build injects a Content Security Policy as a `<meta>` tag (`CONTENT_SECURITY_POLICY` in `vite.config.ts`). The host should also send it as an HTTP header, adding `frame-ancestors 'none'`, which browsers ignore in `<meta>`:
 
 ```
-Content-Security-Policy: <value of CONTENT_SECURITY_POLICY>; frame-ancestors 'none'
+Content-Security-Policy: <value of CONTENT_SECURITY_POLICY>; upgrade-insecure-requests; frame-ancestors 'none'
 ```
+
+Add `upgrade-insecure-requests` only on HTTPS hosts, not to local HTTP previews.
 
 When adding a new external service (map tiles, API endpoints, fonts), update the policy, or the browser will block it.

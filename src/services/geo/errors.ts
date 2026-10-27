@@ -18,7 +18,7 @@ const MESSAGES: Record<LocusErrorCode, string> = {
   AUTH: 'Gemini rejected the API key. Check the key in Settings.',
   QUOTA: 'Gemini rate limit or quota exceeded. Try again later or use another key.',
   GROUNDING_QUOTA:
-    'Your key works, but Google refused Search/Maps grounding for it (quota exceeded). LOCUS needs grounding to check locations and requires a key from a Google AI Studio project with billing enabled; up to 5,000 search queries per month are free.',
+    'Your key works, but Google refused Search/Maps grounding (quota exceeded). Check the selected model\'s limits in Google AI Studio. Gemini 3.x grounding requires billing. For a Free key with access to Gemini 2.5 Flash, select that model in Settings and try WEB SEARCH; its free grounding quota may also be exhausted.',
   REGION: 'Gemini API is not available in your region.',
   MODEL_UNAVAILABLE: 'The selected model is not available for this key. Choose another model in Settings.',
   MODEL_RETIRED: 'Google no longer offers this model to new users. Choose another model in Settings.',

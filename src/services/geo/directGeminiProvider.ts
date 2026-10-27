@@ -1,5 +1,5 @@
 import { GoogleGenAI, type GenerateContentResponse, type GroundingMetadata } from '@google/genai';
-import { DEFAULT_MODEL, getConfig, hasValidKeyChars, isKnownModel, type LocusConfig } from '../config';
+import { DEFAULT_MODEL, FREE_MODEL, getConfig, hasValidKeyChars, isKnownModel, type LocusConfig } from '../config';
 import { LocusError, mapGeminiError } from './errors';
 import { extractGrounding } from './grounding';
 import { buildChatSystemInstruction, buildGeolocationPrompt } from './prompt';
@@ -65,7 +65,9 @@ export class DirectGeminiProvider implements GeoProvider {
       if (
         error instanceof LocusError &&
         (error.code === 'MODEL_UNAVAILABLE' || error.code === 'MODEL_RETIRED') &&
-        modelName !== DEFAULT_MODEL
+        modelName !== DEFAULT_MODEL &&
+        // Keep an explicitly selected free model from switching to billing-only grounding.
+        modelName !== FREE_MODEL
       ) {
         try {
           const result = await this.runAnalysis(apiKey, DEFAULT_MODEL, input);

@@ -1,3 +1,5 @@
+import type { GroundingTool } from './geo/types';
+
 export interface ModelOption {
   id: string;
   label: string;
@@ -6,18 +8,26 @@ export interface ModelOption {
 
 /**
  * Models offered in Settings. All support Grounding with Google Maps and Google Search.
- * As of 2026-10-09: Gemini 3.x grounding needs a key from a project with billing enabled
- * (not available on the free tier), and gemini-2.5-flash is no longer available to new
- * users, so it is not offered. Saved choices outside this list fall back to DEFAULT_MODEL.
+ * Gemini 3.x grounding requires billing. Gemini 2.5 Flash has free grounding quotas
+ * for eligible existing projects; Google restricts access for new projects.
+ * Saved choices outside this list fall back to DEFAULT_MODEL.
  */
+export const FREE_MODEL = 'gemini-2.5-flash';
+
 export const MODEL_OPTIONS: readonly ModelOption[] = [
-  { id: 'gemini-3.6-flash', label: 'Gemini 3.6 Flash (recommended)' },
+  { id: FREE_MODEL, label: 'Gemini 2.5 Flash (Free, eligible existing projects)' },
+  { id: 'gemini-3.6-flash', label: 'Gemini 3.6 Flash (recommended with billing)' },
   { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash' },
   { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash' },
   { id: 'gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro (preview, slower, may be withdrawn)', preview: true },
 ];
 
 export const DEFAULT_MODEL = 'gemini-3.6-flash';
+
+/** Search is the tested free-tier path; Maps quotas may differ for the same key. */
+export function defaultGroundingForModel(modelName: string): GroundingTool {
+  return modelName === FREE_MODEL ? 'search' : 'maps';
+}
 
 export interface LocusConfig {
   apiKey: string;

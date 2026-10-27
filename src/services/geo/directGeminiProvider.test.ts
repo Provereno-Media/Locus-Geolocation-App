@@ -113,6 +113,35 @@ describe('DirectGeminiProvider', () => {
     expect(r.modelFallbackFrom).toBe('gemini-3.1-pro-preview');
   });
 
+  it.each([
+    ['model not found', 'MODEL_UNAVAILABLE'],
+    ['This model is no longer available to new users.', 'MODEL_RETIRED'],
+  ])('does not switch the selected Free model to billing-only grounding: %s', async (message, code) => {
+    generateContent.mockRejectedValueOnce(Object.assign(new Error(message), { status: 404 }));
+    await expect(provider('gemini-2.5-flash').analyzeImage({ ...input, groundingTool: 'search' }))
+      .rejects.toMatchObject({ code });
+    expect(generateContent).toHaveBeenCalledTimes(1);
+    expect(generateContent.mock.calls[0][0].model).toBe('gemini-2.5-flash');
+  });
+
+  it('uses the Free model with Search and preserves it for follow-up chat', async () => {
+    generateContent.mockResolvedValue(answer(good, {
+      webSearchQueries: ['Tallinn town hall'],
+      groundingChunks: [{ web: { uri: 'https://example.com/tallinn', title: 'Town hall' } }],
+    }));
+    const p = provider('gemini-2.5-flash');
+    const result = await p.analyzeImage({ ...input, groundingTool: 'search' });
+    expect(generateContent.mock.calls[0][0].config.tools).toEqual([{ googleSearch: {} }]);
+    expect(result).toMatchObject({
+      model: 'gemini-2.5-flash', groundingTool: 'search', groundingQueries: ['Tallinn town hall'],
+      sources: [{ uri: 'https://example.com/tallinn', type: 'web' }],
+    });
+    expect(result.modelFallbackFrom).toBeUndefined();
+    // Chat must stay on the result's model even after Settings switches to a paid model.
+    provider('gemini-3.8-flash').createChatSession(input, result);
+    expect(chatsCreate.mock.calls[0][0].model).toBe('gemini-2.5-flash');
+  });
+
   it('reports a grounding-only quota error when a plain request passes', async () => {
     generateContent
       .mockRejectedValueOnce(Object.assign(new Error('You exceeded your current quota'), { status: 429 }))
